@@ -17,8 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const discoveredCtx = discoveredCanvas.getContext('2d');
 
     // Visual constants - Updated for 50x50 grid
-    const GRID_SIZE = 50; // Changed from 15 to 50
-    const CELL_SIZE = 20; // Changed from 12 to 20 (1000/50 = 20px per cell)
+    let GRID_SIZE = 50; // Changed from 15 to 50
+    let CELL_SIZE = 20; // Changed from 12 to 20 (1000/50 = 20px per cell)
     const COLOR_FLOOR = '#f0f0f0';
     const COLOR_WALL = '#1a1f2e';
     const COLOR_WALL_BORDER = '#2d3548';
@@ -26,7 +26,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const COLOR_ROBOT_GLOW = 'rgba(233, 69, 96, 0.4)';
     const COLOR_DIRECTION = '#4a90e2';
     const COLOR_GRID = 'rgba(74, 144, 226, 0.1)';
-    const ROBOT_SIZE = 12; // Increased from 8 for better visibility
+    let ROBOT_SIZE = 12; // Increased from 8 for better visibility
+    
+    // Function to recalculate cell size based on grid size
+    function updateCellSize() {
+        if (CLIENT_SIDE && slamEngine) {
+            GRID_SIZE = slamEngine.MAP_SIZE;
+            CELL_SIZE = canvas.width / GRID_SIZE;
+            ROBOT_SIZE = Math.max(6, Math.min(12, CELL_SIZE * 0.6));
+        }
+    }
     
     // Discovered map colors
     const COLOR_UNKNOWN = '#0a0e14';
@@ -634,6 +643,9 @@ document.addEventListener('DOMContentLoaded', () => {
      * Main render function
      */
     function render() {
+        // Update cell size in case grid changed
+        updateCellSize();
+        
         // Clear canvases
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
@@ -1517,4 +1529,106 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial map list load
     loadMapList();
+    
+    // ========================================
+    // Settings Controls
+    // ========================================
+    
+    const mapSizeInput = document.getElementById('map-size-input');
+    const mapSizeDisplay = document.getElementById('map-size-display');
+    const sensorRangeInput = document.getElementById('sensor-range-input');
+    const sensorRangeDisplay = document.getElementById('sensor-range-display');
+    const btnApplySettings = document.getElementById('btn-apply-settings');
+    
+    // Update display values as sliders move
+    if (mapSizeInput) {
+        mapSizeInput.addEventListener('input', (e) => {
+            const size = e.target.value;
+            mapSizeDisplay.textContent = `${size}x${size}`;
+        });
+    }
+    
+    if (sensorRangeInput) {
+        sensorRangeInput.addEventListener('input', (e) => {
+            const range = e.target.value;
+            if (range == 0) {
+                sensorRangeDisplay.textContent = 'Infinite';
+            } else {
+                sensorRangeDisplay.textContent = `${range} cells`;
+            }
+        });
+    }
+    
+    // Apply settings button
+    if (btnApplySettings) {
+        btnApplySettings.addEventListener('click', () => {
+            if (!CLIENT_SIDE || !slamEngine) {
+                alert('Settings are only available in client-side mode!');
+                return;
+            }
+            
+            const newMapSize = parseInt(mapSizeInput.value);
+            const newSensorRange = parseInt(sensorRangeInput.value);
+            
+            // Confirm if changing map size
+            if (newMapSize !== slamEngine.MAP_SIZE) {
+                if (!confirm(`Changing grid size to ${newMapSize}x${newMapSize} will reset the map. Continue?`)) {
+                    return;
+                }
+            }
+            
+            // Apply sensor range
+            if (newSensorRange === 0) {
+                slamEngine.setSensorRange(Infinity);
+            } else {
+                slamEngine.setSensorRange(newSensorRange);
+            }
+            
+            // Apply map size (this will reset the map)
+            if (newMapSize !== slamEngine.MAP_SIZE) {
+                const success = slamEngine.setMapSize(newMapSize);
+                if (success) {
+                    // Reset discovered map
+                    slamEngine.discoveredMap = new Array(newMapSize).fill(0).map(() => new Array(newMapSize).fill(0));
+                    slamEngine.discoveredMap[slamEngine.robot.y][slamEngine.robot.x] = 1;
+                    
+                    // Update canvas sizes
+                    const newCanvasSize = Math.max(600, Math.min(1000, newMapSize * 20));
+                    canvas.width = newCanvasSize;
+                    canvas.height = newCanvasSize;
+                    discoveredCanvas.width = newCanvasSize;
+                    discoveredCanvas.height = newCanvasSize;
+                    
+                    // Update grid size constant
+                    window.CURRENT_GRID_SIZE = newMapSize;
+                    
+                    // Clear goals and paths
+                    goal = null;
+                    plannedPath = [];
+                    stopAutoNavigation();
+                    
+                    alert(`✅ Settings applied!\n• Grid Size: ${newMapSize}x${newMapSize}\n• Sensor Range: ${newSensorRange === 0 ? 'Infinite' : newSensorRange + ' cells'}`);
+                }
+            } else {
+                alert(`✅ Sensor range updated to: ${newSensorRange === 0 ? 'Infinite' : newSensorRange + ' cells'}`);
+            }
+            
+            // Refresh state and render
+            fetchAndRenderState();
+        });
+    }
+    
+    // Initialize settings from current engine state
+    if (CLIENT_SIDE && slamEngine) {
+        mapSizeInput.value = slamEngine.MAP_SIZE;
+        mapSizeDisplay.textContent = `${slamEngine.MAP_SIZE}x${slamEngine.MAP_SIZE}`;
+        
+        if (slamEngine.SENSOR_RANGE === Infinity) {
+            sensorRangeInput.value = 0;
+            sensorRangeDisplay.textContent = 'Infinite';
+        } else {
+            sensorRangeInput.value = slamEngine.SENSOR_RANGE;
+            sensorRangeDisplay.textContent = `${slamEngine.SENSOR_RANGE} cells`;
+        }
+    }
 });

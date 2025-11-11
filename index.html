@@ -155,6 +155,48 @@
                     </div>
                 </div>
                 
+                <div class="info-card">
+                    <h3>⚙️ Simulation Settings</h3>
+                    <div class="editor-controls">
+                        <div class="settings-group">
+                            <label for="map-size-input" class="settings-label">
+                                <span>Grid Size:</span>
+                                <span id="map-size-display" class="value">50x50</span>
+                            </label>
+                            <input type="range" id="map-size-input" min="10" max="100" value="50" step="5" class="range-slider">
+                            <div class="range-labels">
+                                <span>10</span>
+                                <span>100</span>
+                            </div>
+                        </div>
+                        
+                        <div class="settings-group">
+                            <label for="sensor-range-input" class="settings-label">
+                                <span>Sensor Range:</span>
+                                <span id="sensor-range-display" class="value">Infinite</span>
+                            </label>
+                            <input type="range" id="sensor-range-input" min="0" max="50" value="0" step="1" class="range-slider">
+                            <div class="range-labels">
+                                <span>Infinite</span>
+                                <span>50 cells</span>
+                            </div>
+                            <small style="color: #888; font-size: 0.85em; margin-top: 4px; display: block;">
+                                0 = Infinite range
+                            </small>
+                        </div>
+                        
+                        <div class="button-group">
+                            <button id="btn-apply-settings" class="editor-btn" style="background: #4a90e2;">Apply Settings</button>
+                        </div>
+                        
+                        <div style="margin-top: 12px; padding: 8px; background: rgba(233, 69, 96, 0.1); border-radius: 6px;">
+                            <small style="color: #e94560; font-size: 0.85em;">
+                                ⚠️ Changing grid size will reset the map
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="info-card map-editor-card">
                     <h3>Map Editor</h3>
                     <div class="editor-controls">

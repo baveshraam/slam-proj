@@ -2,8 +2,9 @@
 // No server needed - runs entirely in browser!
 
 class SLAMEngine {
-    constructor() {
-        this.MAP_SIZE = 50;
+    constructor(mapSize = 50, sensorRange = Infinity) {
+        this.MAP_SIZE = mapSize;
+        this.SENSOR_RANGE = sensorRange;
         this.WALL = 1;
         this.FLOOR = 0;
         
@@ -112,8 +113,10 @@ class SLAMEngine {
             let cx = this.robot.x;
             let cy = this.robot.y;
             
-            // Ray cast until hitting a wall or map boundary
-            while (distance < this.MAP_SIZE) {
+            // Ray cast until hitting a wall, map boundary, or sensor range limit
+            const maxDistance = Math.min(this.SENSOR_RANGE, this.MAP_SIZE);
+            
+            while (distance < maxDistance) {
                 cx += dx;
                 cy += dy;
                 distance += Math.sqrt(dx * dx + dy * dy);
@@ -130,9 +133,15 @@ class SLAMEngine {
                 if (this.trueMap[gridY][gridX] === this.WALL) {
                     break;
                 }
+                
+                // Check if reached sensor range limit
+                if (distance >= this.SENSOR_RANGE) {
+                    break;
+                }
             }
             
-            sensors[sensorName] = distance;
+            // Cap distance at sensor range
+            sensors[sensorName] = Math.min(distance, this.SENSOR_RANGE);
         }
         
         return sensors;
@@ -442,8 +451,64 @@ class SLAMEngine {
                 height: this.MAP_SIZE,
                 floor_cells: this.trueMap.flat().filter(cell => cell === this.FLOOR).length,
                 wall_cells: this.trueMap.flat().filter(cell => cell === this.WALL).length
+            },
+            settings: {
+                map_size: this.MAP_SIZE,
+                sensor_range: this.SENSOR_RANGE
             }
         };
+    }
+    
+    // Configuration methods
+    setSensorRange(range) {
+        this.SENSOR_RANGE = range > 0 ? range : Infinity;
+        console.log(`Sensor range set to: ${this.SENSOR_RANGE === Infinity ? 'Infinite' : this.SENSOR_RANGE}`);
+    }
+    
+    setMapSize(newSize) {
+        if (newSize < 10 || newSize > 100) {
+            console.error('Map size must be between 10 and 100');
+            return false;
+        }
+        
+        const oldSize = this.MAP_SIZE;
+        this.MAP_SIZE = newSize;
+        
+        // Create new maps with new size
+        const newTrueMap = new Array(newSize).fill(0).map(() => new Array(newSize).fill(0));
+        const newDiscoveredMap = new Array(newSize).fill(0).map(() => new Array(newSize).fill(0));
+        
+        // Add borders to new true map
+        for (let i = 0; i < newSize; i++) {
+            newTrueMap[0][i] = this.WALL;
+            newTrueMap[newSize - 1][i] = this.WALL;
+            newTrueMap[i][0] = this.WALL;
+            newTrueMap[i][newSize - 1] = this.WALL;
+        }
+        
+        // Copy old map data if possible
+        const copySize = Math.min(oldSize, newSize);
+        for (let y = 0; y < copySize; y++) {
+            for (let x = 0; x < copySize; x++) {
+                newTrueMap[y][x] = this.trueMap[y][x];
+                newDiscoveredMap[y][x] = this.discoveredMap[y][x];
+            }
+        }
+        
+        this.trueMap = newTrueMap;
+        this.discoveredMap = newDiscoveredMap;
+        
+        // Reset robot if it's now out of bounds
+        if (this.robot.x >= newSize || this.robot.y >= newSize) {
+            this.robot.x = 1;
+            this.robot.y = 1;
+            this.robot.initial_x = 1;
+            this.robot.initial_y = 1;
+            this.robot.path_history = [[1, 1]];
+        }
+        
+        console.log(`Map size changed from ${oldSize}x${oldSize} to ${newSize}x${newSize}`);
+        return true;
     }
 }
 
