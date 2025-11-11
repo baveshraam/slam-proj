@@ -897,15 +897,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 const success = slamEngine.setGoal(x, y, true);
                 
                 if (success) {
+                    // Update local variables from engine state
                     goal = slamEngine.robot.goal;
                     plannedPath = slamEngine.robot.planned_path;
-                    console.log(`Path found! Length: ${plannedPath.length}`);
+                    
+                    // Also update robot state
+                    const state = slamEngine.getState();
+                    robot = state.robot;
+                    
+                    console.log(`Client-side: Path found! Length: ${plannedPath.length} steps`);
+                    console.log(`Goal set to (${goal.x}, ${goal.y})`);
                 } else {
                     goal = { x, y };
                     plannedPath = [];
-                    console.log('No path found to goal');
+                    console.warn('Client-side: No path found to goal - goal may be unreachable or in unexplored area');
+                    alert('No path found! The goal may be:\n• In an unexplored area (move closer to discover)\n• Behind a wall\n• Unreachable from current position');
                 }
                 
+                updatePathPlanningUI();
                 render();
                 return;
             }
@@ -929,6 +938,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('No path found to goal');
             }
             
+            updatePathPlanningUI();
             render();
         } catch (error) {
             console.error('Error setting goal:', error);

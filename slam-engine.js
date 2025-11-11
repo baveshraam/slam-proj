@@ -267,9 +267,21 @@ class SLAMEngine {
     aStarSearch(start, goal, useDiscovered = true) {
         const map = useDiscovered ? this.discoveredMap : this.trueMap;
         
+        // Different map representations:
+        // trueMap: 0 = floor, 1 = wall
+        // discoveredMap: 0 = unexplored, 1 = free, 2 = obstacle
+        
         // Check if goal is valid
-        if (map[goal[1]][goal[0]] === this.WALL || map[goal[1]][goal[0]] === 2) {
-            return [];
+        if (useDiscovered) {
+            // For discovered map: can't go to unexplored (0) or obstacles (2)
+            if (map[goal[1]][goal[0]] === 0 || map[goal[1]][goal[0]] === 2) {
+                return [];
+            }
+        } else {
+            // For true map: can't go to walls (1)
+            if (map[goal[1]][goal[0]] === this.WALL) {
+                return [];
+            }
         }
         
         const heuristic = (pos1, pos2) => {
@@ -285,8 +297,16 @@ class SLAMEngine {
                 const nx = x + dx;
                 const ny = y + dy;
                 if (nx >= 0 && nx < this.MAP_SIZE && ny >= 0 && ny < this.MAP_SIZE) {
-                    if (map[ny][nx] !== this.WALL && map[ny][nx] !== 2) {
-                        neighbors.push([nx, ny]);
+                    if (useDiscovered) {
+                        // For discovered map: only traverse free cells (1)
+                        if (map[ny][nx] === 1) {
+                            neighbors.push([nx, ny]);
+                        }
+                    } else {
+                        // For true map: only traverse floor (0)
+                        if (map[ny][nx] === this.FLOOR) {
+                            neighbors.push([nx, ny]);
+                        }
                     }
                 }
             }
