@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLAM Simulation - Smart Wheelchair</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-gradient"></div>
+    
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="20" cy="20" r="18" stroke="#4a90e2" stroke-width="2"/>
+                    <circle cx="20" cy="20" r="8" fill="#e94560"/>
+                    <line x1="20" y1="20" x2="32" y2="20" stroke="#4a90e2" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <h1>Smart Wheelchair SLAM</h1>
+            <div class="status-indicator">
+                <span class="status-dot"></span>
+                <span id="connection-status">Connecting...</span>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <div class="canvas-wrapper">
+                <canvas id="slamCanvas" width="600" height="600"></canvas>
+                <div class="canvas-overlay">
+                    <div class="grid-label top-left">Origin (0,0)</div>
+                    <div class="grid-label bottom-right">15x15 Grid</div>
+                </div>
+            </div>
+            
+            <div class="info-panel">
+                <div class="info-card">
+                    <h3>Robot Position</h3>
+                    <div class="robot-info">
+                        <div class="info-row">
+                            <span class="label">X:</span>
+                            <span class="value" id="robot-x">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Y:</span>
+                            <span class="value" id="robot-y">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Angle:</span>
+                            <span class="value" id="robot-angle">-</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Direction:</span>
+                            <span class="value" id="robot-direction">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="info-card">
+                    <h3>Sensor Data</h3>
+                    <div id="sensor-display" class="sensor-data">
+                        <p class="placeholder">Initializing sensors...</p>
+                    </div>
+                </div>
+                
+                <div class="info-card controls-card">
+                    <h3>Controls</h3>
+                    <div class="control-grid">
+                        <div class="control-item">
+                            <kbd>W</kbd> <kbd>↑</kbd>
+                            <span>Move Forward</span>
+                        </div>
+                        <div class="control-item">
+                            <kbd>A</kbd> <kbd>←</kbd>
+                            <span>Rotate Left</span>
+                        </div>
+                        <div class="control-item">
+                            <kbd>D</kbd> <kbd>→</kbd>
+                            <span>Rotate Right</span>
+                        </div>
+                        <div class="control-item">
+                            <kbd>S</kbd> <kbd>↓</kbd>
+                            <span>Move Backward</span>
+                        </div>
+                        <div class="control-item">
+                            <kbd>R</kbd>
+                            <span>Reset Position</span>
+                        </div>
+                        <div class="control-item">
+                            <kbd>E</kbd>
+                            <span>Toggle Edit Mode</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="info-card map-editor-card">
+                    <h3>Map Editor</h3>
+                    <div class="editor-controls">
+                        <div class="editor-status">
+                            <span id="edit-mode-status">Edit Mode: <strong>OFF</strong></span>
+                        </div>
+                        <div class="button-group">
+                            <button id="btn-clear-map" class="editor-btn">Clear Map</button>
+                            <button id="btn-save-map" class="editor-btn">Save Map</button>
+                            <button id="btn-load-map" class="editor-btn">Load Map</button>
+                        </div>
+                        <div class="file-input-group">
+                            <input type="text" id="map-filename" placeholder="Enter map name (e.g., my_maze)" class="map-input">
+                            <small style="color: #888; font-size: 0.85em; margin-top: 4px; display: block;">Leave empty to be prompted</small>
+                        </div>
+                        <div id="map-list" class="map-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer class="footer">
+            <p>SLAM Simulation v1.0 • Real-time Localization & Mapping</p>
+        </footer>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
