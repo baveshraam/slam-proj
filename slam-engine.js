@@ -85,36 +85,54 @@ class SLAMEngine {
     }
     
     getSensorReadings() {
-        const directions = [
-            [0, -1],   // N
-            [1, -1],   // NE
-            [1, 0],    // E
-            [1, 1],    // SE
-            [0, 1],    // S
-            [-1, 1],   // SW
-            [-1, 0],   // W
-            [-1, -1]   // NW
-        ];
+        // Map directional sensors based on robot's current angle
+        const angle = this.robot.angle;
         
-        const dirNames = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+        // Define the 8 sensor directions relative to robot's heading
+        const sensorAngles = {
+            'front': angle,
+            'front_right': (angle - 45 + 360) % 360,
+            'right': (angle - 90 + 360) % 360,
+            'back_right': (angle - 135 + 360) % 360,
+            'back': (angle + 180) % 360,
+            'back_left': (angle + 135) % 360,
+            'left': (angle + 90) % 360,
+            'front_left': (angle + 45) % 360
+        };
+        
         const sensors = {};
         
-        for (let i = 0; i < directions.length; i++) {
-            const [dx, dy] = directions[i];
+        // Cast rays for each sensor direction
+        for (const [sensorName, sensorAngle] of Object.entries(sensorAngles)) {
+            const rad = sensorAngle * (Math.PI / 180);
+            const dx = Math.cos(rad);
+            const dy = -Math.sin(rad); // Negative because y increases downward
+            
             let distance = 0;
             let cx = this.robot.x;
             let cy = this.robot.y;
             
+            // Ray cast until hitting a wall or map boundary
             while (distance < this.MAP_SIZE) {
                 cx += dx;
                 cy += dy;
-                distance += 1;
+                distance += Math.sqrt(dx * dx + dy * dy);
                 
-                if (cx < 0 || cx >= this.MAP_SIZE || cy < 0 || cy >= this.MAP_SIZE) break;
-                if (this.trueMap[cy][cx] === this.WALL) break;
+                const gridX = Math.floor(cx);
+                const gridY = Math.floor(cy);
+                
+                // Check boundaries
+                if (gridX < 0 || gridX >= this.MAP_SIZE || gridY < 0 || gridY >= this.MAP_SIZE) {
+                    break;
+                }
+                
+                // Check if hit a wall
+                if (this.trueMap[gridY][gridX] === this.WALL) {
+                    break;
+                }
             }
             
-            sensors[dirNames[i]] = distance;
+            sensors[sensorName] = distance;
         }
         
         return sensors;
@@ -122,38 +140,55 @@ class SLAMEngine {
     
     updateDiscoveredMap() {
         const sensors = this.getSensorReadings();
-        const { x, y } = this.robot;
+        const { x, y, angle } = this.robot;
         
         // Mark current position as free
         this.discoveredMap[y][x] = 1;
         
-        const directions = {
-            "N": [0, -1], "NE": [1, -1], "E": [1, 0], "SE": [1, 1],
-            "S": [0, 1], "SW": [-1, 1], "W": [-1, 0], "NW": [-1, -1]
-        };
-        
-        for (const [dirName, [dx, dy]] of Object.entries(directions)) {
-            const distance = sensors[dirName];
+        // Update discovered map based on sensor readings
+        for (const [sensorName, distance] of Object.entries(sensors)) {
+            // Get the angle for this sensor
+            let sensorAngle;
+            if (sensorName === 'front') sensorAngle = angle;
+            else if (sensorName === 'front_right') sensorAngle = (angle - 45 + 360) % 360;
+            else if (sensorName === 'right') sensorAngle = (angle - 90 + 360) % 360;
+            else if (sensorName === 'back_right') sensorAngle = (angle - 135 + 360) % 360;
+            else if (sensorName === 'back') sensorAngle = (angle + 180) % 360;
+            else if (sensorName === 'back_left') sensorAngle = (angle + 135) % 360;
+            else if (sensorName === 'left') sensorAngle = (angle + 90) % 360;
+            else if (sensorName === 'front_left') sensorAngle = (angle + 45) % 360;
+            
+            const rad = sensorAngle * (Math.PI / 180);
+            const dx = Math.cos(rad);
+            const dy = -Math.sin(rad);
+            
+            // Mark cells along the ray as discovered
             let cx = x;
             let cy = y;
+            let traveled = 0;
             
-            // Mark free spaces along the ray
-            for (let step = 1; step < distance; step++) {
-                cx += dx;
-                cy += dy;
-                if (cx >= 0 && cx < this.MAP_SIZE && cy >= 0 && cy < this.MAP_SIZE) {
-                    if (this.discoveredMap[cy][cx] === 0) {
-                        this.discoveredMap[cy][cx] = 1; // Free space
+            while (traveled < distance) {
+                cx += dx * 0.5; // Smaller steps for accuracy
+                cy += dy * 0.5;
+                traveled += 0.5;
+                
+                const gridX = Math.floor(cx);
+                const gridY = Math.floor(cy);
+                
+                if (gridX >= 0 && gridX < this.MAP_SIZE && gridY >= 0 && gridY < this.MAP_SIZE) {
+                    if (this.discoveredMap[gridY][gridX] === 0) {
+                        this.discoveredMap[gridY][gridX] = 1; // Free space
                     }
                 }
             }
             
-            // Mark obstacle at the end
-            const obstacleX = x + dx * distance;
-            const obstacleY = y + dy * distance;
-            if (obstacleX >= 0 && obstacleX < this.MAP_SIZE && obstacleY >= 0 && obstacleY < this.MAP_SIZE) {
-                if (this.trueMap[obstacleY][obstacleX] === this.WALL) {
-                    this.discoveredMap[obstacleY][obstacleX] = 2; // Obstacle
+            // Mark the obstacle at the end
+            const endX = Math.floor(x + dx * distance);
+            const endY = Math.floor(y + dy * distance);
+            
+            if (endX >= 0 && endX < this.MAP_SIZE && endY >= 0 && endY < this.MAP_SIZE) {
+                if (this.trueMap[endY][endX] === this.WALL) {
+                    this.discoveredMap[endY][endX] = 2; // Obstacle
                 }
             }
         }
