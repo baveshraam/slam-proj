@@ -1,6 +1,13 @@
 // API Configuration
-// For production, set BACKEND_URL in your environment or use the prompt
+const CLIENT_SIDE = window.CLIENT_SIDE_MODE || false;
 const API_BASE_URL = window.BACKEND_URL || 'http://127.0.0.1:5000';
+
+// Initialize SLAM Engine if client-side mode
+let slamEngine = null;
+if (CLIENT_SIDE) {
+    slamEngine = new SLAMEngine();
+    console.log('🚀 Client-side mode: All logic running in browser!');
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     // Get canvases and contexts
@@ -609,8 +616,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (connected) {
             statusDot.classList.remove('disconnected');
-            statusText.textContent = 'Connected';
-            statusText.style.color = '#4ade80';
+            if (CLIENT_SIDE && slamEngine) {
+                statusText.textContent = 'Client-Side Mode';
+                statusText.style.color = '#4a90e2';
+            } else {
+                statusText.textContent = 'Connected';
+                statusText.style.color = '#4ade80';
+            }
         } else {
             statusDot.classList.add('disconnected');
             statusText.textContent = 'Disconnected';
@@ -707,10 +719,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Fetch game state from backend and render
+     * Fetch game state from backend and render (or initialize client-side)
      */
     async function fetchAndRenderState() {
         try {
+            if (CLIENT_SIDE && slamEngine) {
+                // Client-side mode - get state from engine
+                const state = slamEngine.getState();
+                robot = state.robot;
+                trueMap = state.true_map;
+                discoveredMap = state.discovered_map;
+                
+                if (robot.path_planning) {
+                    goal = robot.path_planning.goal;
+                    plannedPath = robot.path_planning.planned_path || [];
+                }
+                
+                // Update connection status
+                updateConnectionStatus(true);
+                
+                // Update sensors
+                sensors = slamEngine.getSensorReadings();
+                updateSensorDisplay();
+                
+                // Update odometry
+                odometry = robot.odometry;
+                pathHistory = slamEngine.robot.path_history;
+                
+                // Update sensor display
+                const sensorDisplay = document.getElementById('sensor-display');
+                sensorDisplay.innerHTML = `
+                    <div style="color: #4ade80;">✓ Client-side mode: ${state.map_info.width}x${state.map_info.height}</div>
+                    <div style="color: #9ca3af;">Floor cells: ${state.map_info.floor_cells}</div>
+                    <div style="color: #9ca3af;">Wall cells: ${state.map_info.wall_cells}</div>
+                    <div style="color: #4a90e2; margin-top: 8px;">🚀 Running entirely in browser - Zero lag!</div>
+                `;
+                
+                // Render the updated state
+                render();
+                console.log("Client-side state initialized and rendered");
+                return;
+            }
+            
+            // Server-side mode
             const response = await fetch(`${API_BASE_URL}/api/get_state`);
             
             if (!response.ok) {
@@ -766,10 +817,46 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Send movement command to backend
+     * Send movement command to backend OR execute locally
      */
     async function sendMoveCommand(command) {
         try {
+            if (CLIENT_SIDE && slamEngine) {
+                // Client-side execution
+                if (command === 'move_forward') {
+                    slamEngine.moveForward();
+                } else if (command === 'move_backward') {
+                    slamEngine.moveBackward();
+                } else if (command === 'rotate_left') {
+                    slamEngine.rotateLeft();
+                } else if (command === 'rotate_right') {
+                    slamEngine.rotateRight();
+                }
+                
+                // Update local state
+                const state = slamEngine.getState();
+                robot = state.robot;
+                trueMap = state.true_map;
+                discoveredMap = state.discovered_map;
+                
+                if (robot.path_planning) {
+                    goal = robot.path_planning.goal;
+                    plannedPath = robot.path_planning.planned_path || [];
+                }
+                
+                // Update sensors
+                sensors = slamEngine.getSensorReadings();
+                updateSensorDisplay();
+                
+                // Update odometry
+                odometry = robot.odometry;
+                pathHistory = slamEngine.robot.path_history;
+                
+                render();
+                return;
+            }
+            
+            // Server-side execution (original code)
             const response = await fetch(`${API_BASE_URL}/api/move`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -805,6 +892,25 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function setGoal(x, y) {
         try {
+            if (CLIENT_SIDE && slamEngine) {
+                // Client-side path planning
+                const success = slamEngine.setGoal(x, y, true);
+                
+                if (success) {
+                    goal = slamEngine.robot.goal;
+                    plannedPath = slamEngine.robot.planned_path;
+                    console.log(`Path found! Length: ${plannedPath.length}`);
+                } else {
+                    goal = { x, y };
+                    plannedPath = [];
+                    console.log('No path found to goal');
+                }
+                
+                render();
+                return;
+            }
+            
+            // Server-side path planning
             const response = await fetch(`${API_BASE_URL}/api/set_goal`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -834,6 +940,15 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function clearGoal() {
         try {
+            if (CLIENT_SIDE && slamEngine) {
+                slamEngine.clearGoal();
+                goal = null;
+                plannedPath = [];
+                stopAutoNavigation();
+                render();
+                return;
+            }
+            
             await fetch(`${API_BASE_URL}/api/clear_goal`, { method: 'POST' });
             goal = null;
             plannedPath = [];
@@ -849,6 +964,56 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function followPath() {
         try {
+            if (CLIENT_SIDE && slamEngine) {
+                const nextMove = slamEngine.getNextMoveInPath();
+                
+                if (!nextMove) {
+                    if (goal && robot.x === goal.x && robot.y === goal.y) {
+                        stopAutoNavigation();
+                        console.log('Goal reached!');
+                    }
+                    return;
+                }
+                
+                // Execute the move
+                if (nextMove === 'move_forward') {
+                    slamEngine.moveForward();
+                } else if (nextMove === 'move_backward') {
+                    slamEngine.moveBackward();
+                } else if (nextMove === 'rotate_left') {
+                    slamEngine.rotateLeft();
+                } else if (nextMove === 'rotate_right') {
+                    slamEngine.rotateRight();
+                }
+                
+                // Update state
+                const state = slamEngine.getState();
+                robot = state.robot;
+                trueMap = state.true_map;
+                discoveredMap = state.discovered_map;
+                
+                if (robot.path_planning) {
+                    goal = robot.path_planning.goal;
+                    plannedPath = robot.path_planning.planned_path || [];
+                }
+                
+                sensors = slamEngine.getSensorReadings();
+                updateSensorDisplay();
+                odometry = robot.odometry;
+                pathHistory = slamEngine.robot.path_history;
+                
+                render();
+                
+                // Check if goal reached
+                if (goal && robot.x === goal.x && robot.y === goal.y) {
+                    stopAutoNavigation();
+                    console.log('Goal reached!');
+                }
+                
+                return;
+            }
+            
+            // Server-side followPath
             const response = await fetch(`${API_BASE_URL}/api/follow_path`, {
                 method: 'POST'
             });
@@ -955,9 +1120,23 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'R':
                 if (!editMode) {
                     // Reset robot to starting position
-                    fetch(`${API_BASE_URL}/api/reset`, { method: 'POST' })
-                        .then(() => fetchAndRenderState())
-                        .catch(err => console.error('Reset failed:', err));
+                    if (CLIENT_SIDE && slamEngine) {
+                        // Client-side reset
+                        slamEngine.reset();
+                        const state = slamEngine.getState();
+                        robot = state.robot;
+                        trueMap = state.true_map;
+                        discoveredMap = state.discovered_map;
+                        goal = null;
+                        plannedPath = [];
+                        render();
+                        console.log('Client-side: Robot reset to starting position');
+                    } else {
+                        // Server-side reset
+                        fetch(`${API_BASE_URL}/api/reset`, { method: 'POST' })
+                            .then(() => fetchAndRenderState())
+                            .catch(err => console.error('Reset failed:', err));
+                    }
                 }
                 break;
             case 'e':
@@ -1024,6 +1203,27 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Toggle the cell
         try {
+            if (CLIENT_SIDE && slamEngine) {
+                // Client-side execution
+                slamEngine.toggleCell(gridX, gridY);
+                
+                // Update local state
+                const state = slamEngine.getState();
+                robot = state.robot;
+                trueMap = state.true_map;
+                discoveredMap = state.discovered_map;
+                
+                if (robot.path_planning) {
+                    goal = robot.path_planning.goal;
+                    plannedPath = robot.path_planning.planned_path || [];
+                }
+                
+                render();
+                console.log(`Client-side: Toggled cell at (${gridX}, ${gridY})`);
+                return;
+            }
+            
+            // Server-side execution
             const response = await fetch(`${API_BASE_URL}/api/toggle_cell`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1090,6 +1290,14 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function loadMapList() {
         try {
+            if (CLIENT_SIDE && slamEngine) {
+                // Client-side mode: No map loading available
+                const mapListEl = document.getElementById('map-list');
+                mapListEl.innerHTML = '<div style="color: #6b7280; font-size: 0.8rem;">Client-side mode: Use Edit Mode (E) to create maps</div>';
+                return;
+            }
+            
+            // Server-side mode
             const response = await fetch(`${API_BASE_URL}/api/list_maps`);
             const data = await response.json();
             
@@ -1116,6 +1324,15 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     window.loadMapByName = async function(filename) {
         try {
+            if (CLIENT_SIDE && slamEngine) {
+                // Client-side mode: Maps cannot be loaded from files
+                // User can only use edit mode to create custom maps
+                alert('Client-side mode: Use Edit Mode (E) to create custom maps.\nMap files are not supported in browser-only mode.');
+                console.log('Client-side mode does not support loading map files');
+                return;
+            }
+            
+            // Server-side mode
             const response = await fetch(`${API_BASE_URL}/api/load_map`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1193,6 +1410,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!confirm('Clear all internal walls? This cannot be undone.')) return;
         
         try {
+            if (CLIENT_SIDE && slamEngine) {
+                // Client-side clear map
+                slamEngine.clearMap();
+                const state = slamEngine.getState();
+                robot = state.robot;
+                trueMap = state.true_map;
+                discoveredMap = state.discovered_map;
+                
+                if (robot.path_planning) {
+                    goal = robot.path_planning.goal;
+                    plannedPath = robot.path_planning.planned_path || [];
+                }
+                
+                render();
+                console.log('Client-side: Map cleared (all internal walls removed)');
+                return;
+            }
+            
+            // Server-side clear map
             const response = await fetch(`${API_BASE_URL}/api/clear_map`, { method: 'POST' });
             const data = await response.json();
             
@@ -1215,6 +1451,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('btn-save-map').addEventListener('click', async () => {
+        if (CLIENT_SIDE && slamEngine) {
+            alert('Client-side mode: Map saving is not supported.\nYour map exists only in this browser session.');
+            console.log('Client-side mode does not support saving maps to files');
+            return;
+        }
+        
         let filename = document.getElementById('map-filename').value.trim();
         
         if (!filename) {

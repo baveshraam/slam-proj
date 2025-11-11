@@ -1,8 +1,7 @@
 // Backend Configuration
-// Update this URL to point to your deployed Flask backend
-window.BACKEND_URL = 'https://slam-proj.onrender.com';
+// CLIENT-SIDE MODE: All logic runs in browser, no server needed!
+window.CLIENT_SIDE_MODE = true;
+window.BACKEND_URL = null;
 
-// For production deployment:
-// 1. Deploy your Flask backend (app.py) to Render, Railway, or Heroku
-// 2. Update the URL above to your backend URL
-// Example: window.BACKEND_URL = 'https://your-backend.onrender.com';
+// Fast, zero lag, works 100% on Vercel!
+// No external services needed!
