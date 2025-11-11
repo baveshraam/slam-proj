@@ -34,6 +34,12 @@ document.addEventListener('DOMContentLoaded', () => {
             GRID_SIZE = slamEngine.MAP_SIZE;
             CELL_SIZE = canvas.width / GRID_SIZE;
             ROBOT_SIZE = Math.max(6, Math.min(12, CELL_SIZE * 0.6));
+            
+            // Update grid size labels
+            const label1 = document.getElementById('grid-size-label-1');
+            const label2 = document.getElementById('grid-size-label-2');
+            if (label1) label1.textContent = `${GRID_SIZE}x${GRID_SIZE} Grid`;
+            if (label2) label2.textContent = `${GRID_SIZE}x${GRID_SIZE} Grid`;
         }
     }
     
@@ -75,18 +81,18 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.lineWidth = 1;
 
         // Vertical lines
-        for (let x = 0; x <= 15; x++) {
+        for (let x = 0; x <= GRID_SIZE; x++) {
             ctx.beginPath();
             ctx.moveTo(x * CELL_SIZE, 0);
-            ctx.lineTo(x * CELL_SIZE, 600);
+            ctx.lineTo(x * CELL_SIZE, canvas.height);
             ctx.stroke();
         }
 
         // Horizontal lines
-        for (let y = 0; y <= 15; y++) {
+        for (let y = 0; y <= GRID_SIZE; y++) {
             ctx.beginPath();
             ctx.moveTo(0, y * CELL_SIZE);
-            ctx.lineTo(600, y * CELL_SIZE);
+            ctx.lineTo(canvas.width, y * CELL_SIZE);
             ctx.stroke();
         }
     }
@@ -1102,8 +1108,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load initial state
     fetchAndRenderState();
     
-    // Refresh state every 2 seconds
-    setInterval(fetchAndRenderState, 2000);
+    // Refresh state every 2 seconds (only in server mode)
+    if (!CLIENT_SIDE) {
+        setInterval(fetchAndRenderState, 2000);
+    }
     
     // Add smooth animation on load
     canvas.style.opacity = '0';
@@ -1422,110 +1430,123 @@ document.addEventListener('DOMContentLoaded', () => {
         btnClearGoal.addEventListener('click', () => {
             clearGoal();
             goalMode = false;
-            btnSetGoal.textContent = 'Set Goal (Click Map)';
-            btnSetGoal.style.background = '';
+            if (btnSetGoal) {
+                btnSetGoal.textContent = 'Set Goal (Click Map)';
+                btnSetGoal.style.background = '';
+            }
         });
     }
 
     // Button event listeners
-    document.getElementById('btn-clear-map').addEventListener('click', async () => {
-        if (!confirm('Clear all internal walls? This cannot be undone.')) return;
-        
-        try {
-            if (CLIENT_SIDE && slamEngine) {
-                // Client-side clear map
-                slamEngine.clearMap();
-                const state = slamEngine.getState();
-                robot = state.robot;
-                trueMap = state.true_map;
-                discoveredMap = state.discovered_map;
-                
-                if (robot.path_planning) {
-                    goal = robot.path_planning.goal;
-                    plannedPath = robot.path_planning.planned_path || [];
+    const btnClearMap = document.getElementById('btn-clear-map');
+    if (btnClearMap) {
+        btnClearMap.addEventListener('click', async () => {
+            if (!confirm('Clear all internal walls? This cannot be undone.')) return;
+            
+            try {
+                if (CLIENT_SIDE && slamEngine) {
+                    // Client-side clear map
+                    slamEngine.clearMap();
+                    const state = slamEngine.getState();
+                    robot = state.robot;
+                    trueMap = state.true_map;
+                    discoveredMap = state.discovered_map;
+                    
+                    if (robot.path_planning) {
+                        goal = robot.path_planning.goal;
+                        plannedPath = robot.path_planning.planned_path || [];
+                    }
+                    
+                    render();
+                    console.log('Client-side: Map cleared (all internal walls removed)');
+                    return;
                 }
                 
-                render();
-                console.log('Client-side: Map cleared (all internal walls removed)');
+                // Server-side clear map
+                const response = await fetch(`${API_BASE_URL}/api/clear_map`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    robot = data.data.robot;
+                    trueMap = data.data.true_map;
+                    discoveredMap = data.data.discovered_map || [];
+                    
+                    // Extract goal and planned path from robot state
+                    if (robot.path_planning) {
+                        goal = robot.path_planning.goal;
+                        plannedPath = robot.path_planning.planned_path || [];
+                    }
+                    
+                    render();
+                }
+            } catch (error) {
+                console.error('Error clearing map:', error);
+            }
+        });
+    }
+
+    const btnSaveMap = document.getElementById('btn-save-map');
+    if (btnSaveMap) {
+        btnSaveMap.addEventListener('click', async () => {
+            if (CLIENT_SIDE && slamEngine) {
+                alert('Client-side mode: Map saving is not supported.\nYour map exists only in this browser session.');
+                console.log('Client-side mode does not support saving maps to files');
                 return;
             }
             
-            // Server-side clear map
-            const response = await fetch(`${API_BASE_URL}/api/clear_map`, { method: 'POST' });
-            const data = await response.json();
+            let filename = document.getElementById('map-filename').value.trim();
             
-            if (data.success) {
-                robot = data.data.robot;
-                trueMap = data.data.true_map;
-                discoveredMap = data.data.discovered_map || [];
+            if (!filename) {
+                filename = prompt('Enter map name (without .json):');
+                if (!filename) return;
+                filename = filename.trim();
+            }
+            
+            // Ensure it doesn't have .json extension (will be added by backend)
+            filename = filename.replace('.json', '');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/save_map`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename })
+                });
                 
-                // Extract goal and planned path from robot state
-                if (robot.path_planning) {
-                    goal = robot.path_planning.goal;
-                    plannedPath = robot.path_planning.planned_path || [];
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`✅ Map saved as "${filename}.json"!`);
+                    const filenameInput = document.getElementById('map-filename');
+                    if (filenameInput) filenameInput.value = ''; // Clear input
+                    loadMapList(); // Refresh map list
+                } else {
+                    alert(`❌ Error: ${data.message}`);
                 }
-                
-                render();
+            } catch (error) {
+                console.error('Error saving map:', error);
+                alert('❌ Failed to save map');
             }
-        } catch (error) {
-            console.error('Error clearing map:', error);
-        }
-    });
+        });
+    }
 
-    document.getElementById('btn-save-map').addEventListener('click', async () => {
-        if (CLIENT_SIDE && slamEngine) {
-            alert('Client-side mode: Map saving is not supported.\nYour map exists only in this browser session.');
-            console.log('Client-side mode does not support saving maps to files');
-            return;
-        }
-        
-        let filename = document.getElementById('map-filename').value.trim();
-        
-        if (!filename) {
-            filename = prompt('Enter map name (without .json):');
-            if (!filename) return;
-            filename = filename.trim();
-        }
-        
-        // Ensure it doesn't have .json extension (will be added by backend)
-        filename = filename.replace('.json', '');
-        
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/save_map`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filename })
-            });
+    const btnLoadMap = document.getElementById('btn-load-map');
+    if (btnLoadMap) {
+        btnLoadMap.addEventListener('click', async () => {
+            const filenameInput = document.getElementById('map-filename');
+            let filename = filenameInput ? filenameInput.value.trim() : '';
             
-            const data = await response.json();
-            
-            if (data.success) {
-                alert(`✅ Map saved as "${filename}.json"!`);
-                document.getElementById('map-filename').value = ''; // Clear input
-                loadMapList(); // Refresh map list
-            } else {
-                alert(`❌ Error: ${data.message}`);
+            if (!filename) {
+                filename = prompt('Enter map name to load (without .json):');
+                if (!filename) return;
+                filename = filename.trim();
             }
-        } catch (error) {
-            console.error('Error saving map:', error);
-            alert('❌ Failed to save map');
-        }
-    });
-
-    document.getElementById('btn-load-map').addEventListener('click', async () => {
-        let filename = document.getElementById('map-filename').value.trim();
-        
-        if (!filename) {
-            filename = prompt('Enter map name to load (without .json):');
-            if (!filename) return;
-            filename = filename.trim();
-        }
-        
-        // Ensure it doesn't have .json extension (will be added by backend)
-        filename = filename.replace('.json', '');
-        
-        loadMapByName(filename);
-    });
+            
+            // Ensure it doesn't have .json extension (will be added by backend)
+            filename = filename.replace('.json', '');
+            
+            loadMapByName(filename);
+        });
+    }
 
     // Initial map list load
     loadMapList();
@@ -1619,7 +1640,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Initialize settings from current engine state
-    if (CLIENT_SIDE && slamEngine) {
+    if (CLIENT_SIDE && slamEngine && mapSizeInput && sensorRangeInput) {
         mapSizeInput.value = slamEngine.MAP_SIZE;
         mapSizeDisplay.textContent = `${slamEngine.MAP_SIZE}x${slamEngine.MAP_SIZE}`;
         
