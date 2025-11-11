@@ -12,9 +12,20 @@ if (CLIENT_SIDE) {
 document.addEventListener('DOMContentLoaded', () => {
     // Get canvases and contexts
     const canvas = document.getElementById('slamCanvas');
-    const ctx = canvas.getContext('2d');
     const discoveredCanvas = document.getElementById('discoveredCanvas');
+    
+    if (!canvas || !discoveredCanvas) {
+        console.error('Canvas elements not found!');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
     const discoveredCtx = discoveredCanvas.getContext('2d');
+    
+    if (!ctx || !discoveredCtx) {
+        console.error('Could not get canvas contexts!');
+        return;
+    }
 
     // Visual constants - Updated for 50x50 grid
     let GRID_SIZE = 50; // Changed from 15 to 50
@@ -434,12 +445,16 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         
         Object.entries(sensors).forEach(([sensorName, distance]) => {
+            // Skip disabled sensors (null values)
+            if (distance === null) return;
+            
             const angle = sensorAngles[sensorName];
             if (angle === undefined) return;
             
             const rad = angle * (Math.PI / 180);
-            const endX = robotPixelX + Math.cos(rad) * distance * CELL_SIZE;
-            const endY = robotPixelY - Math.sin(rad) * distance * CELL_SIZE;
+            const displayDistance = isFinite(distance) ? distance : 100; // Cap infinite for display
+            const endX = robotPixelX + Math.cos(rad) * displayDistance * CELL_SIZE;
+            const endY = robotPixelY - Math.sin(rad) * displayDistance * CELL_SIZE;
             
             // Draw ray
             ctx.beginPath();
@@ -535,12 +550,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const pathLength = document.getElementById('path-length-value');
         const autoNavBtn = document.getElementById('btn-auto-navigate');
         
+        if (!pathStatus || !pathLength || !autoNavBtn) {
+            return; // Elements not found
+        }
+        
         if (goal) {
             pathStatus.textContent = `Goal: (${goal.x}, ${goal.y})`;
             pathStatus.style.color = '#4ade80';
             
             if (plannedPath && plannedPath.length > 0) {
                 pathLength.textContent = plannedPath.length;
+                pathLength.style.color = ''; // Reset color
                 autoNavBtn.disabled = false;
             } else {
                 pathLength.textContent = 'No path found';
@@ -551,6 +571,7 @@ document.addEventListener('DOMContentLoaded', () => {
             pathStatus.textContent = 'No goal set';
             pathStatus.style.color = '#9ca3af';
             pathLength.textContent = '-';
+            pathLength.style.color = ''; // Reset color
             autoNavBtn.disabled = true;
         }
         
@@ -568,9 +589,19 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function updateSensorDisplay() {
         const sensorDisplay = document.getElementById('sensor-display');
+        if (!sensorDisplay) {
+            return; // Element not found
+        }
+        
         if (!sensors || Object.keys(sensors).length === 0) {
             sensorDisplay.innerHTML = '<p class="placeholder">No sensor data</p>';
             return;
+        }
+        
+        // Get sensor config if available
+        let sensorConfig = {};
+        if (CLIENT_SIDE && slamEngine) {
+            sensorConfig = slamEngine.getSensorConfig();
         }
         
         // Create sensor grid display
@@ -579,13 +610,19 @@ document.addEventListener('DOMContentLoaded', () => {
         // Main sensors (cardinal directions)
         const mainSensors = ['front', 'left', 'right', 'back'];
         mainSensors.forEach(sensor => {
-            const distance = sensors[sensor] || 0;
+            const distance = sensors[sensor];
+            const isEnabled = sensorConfig[sensor] ? sensorConfig[sensor].enabled : true;
+            const range = sensorConfig[sensor] ? sensorConfig[sensor].range : Infinity;
             const icon = getSensorIcon(sensor);
+            const displayValue = distance === null ? 'OFF' : (isFinite(distance) ? distance.toFixed(1) : '∞');
+            const statusClass = distance === null || !isEnabled ? 'sensor-disabled' : '';
+            
             html += `
-                <div class="sensor-item">
+                <div class="sensor-item ${statusClass}">
                     <span class="sensor-icon">${icon}</span>
                     <span class="sensor-name">${sensor}</span>
-                    <span class="sensor-value">${distance}</span>
+                    <span class="sensor-value">${displayValue}</span>
+                    ${range !== Infinity ? `<span class="sensor-range-badge">${range.toFixed(0)}max</span>` : ''}
                 </div>
             `;
         });
@@ -596,10 +633,16 @@ document.addEventListener('DOMContentLoaded', () => {
         html += '<div class="sensor-grid-small">';
         const diagonalSensors = ['front_left', 'front_right', 'back_left', 'back_right'];
         diagonalSensors.forEach(sensor => {
-            const distance = sensors[sensor] || 0;
+            const distance = sensors[sensor];
+            const isEnabled = sensorConfig[sensor] ? sensorConfig[sensor].enabled : true;
+            const range = sensorConfig[sensor] ? sensorConfig[sensor].range : Infinity;
+            const displayValue = distance === null ? 'OFF' : (isFinite(distance) ? distance.toFixed(1) : '∞');
+            const statusClass = distance === null || !isEnabled ? 'sensor-disabled' : '';
+            
             html += `
-                <div class="sensor-item-small">
-                    <span>${sensor.replace('_', ' ')}: ${distance}</span>
+                <div class="sensor-item-small ${statusClass}">
+                    <span>${sensor.replace('_', ' ')}: ${displayValue}</span>
+                    ${range !== Infinity ? ` (max:${range.toFixed(0)})` : ''}
                 </div>
             `;
         });
@@ -763,15 +806,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update odometry
                 odometry = robot.odometry;
                 pathHistory = slamEngine.robot.path_history;
-                
-                // Update sensor display
-                const sensorDisplay = document.getElementById('sensor-display');
-                sensorDisplay.innerHTML = `
-                    <div style="color: #4ade80;">✓ Client-side mode: ${state.map_info.width}x${state.map_info.height}</div>
-                    <div style="color: #9ca3af;">Floor cells: ${state.map_info.floor_cells}</div>
-                    <div style="color: #9ca3af;">Wall cells: ${state.map_info.wall_cells}</div>
-                    <div style="color: #4a90e2; margin-top: 8px;">🚀 Running entirely in browser - Zero lag!</div>
-                `;
                 
                 // Render the updated state
                 render();
@@ -1650,6 +1684,176 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             sensorRangeInput.value = slamEngine.SENSOR_RANGE;
             sensorRangeDisplay.textContent = `${slamEngine.SENSOR_RANGE} cells`;
+        }
+    }
+    
+    // ============================================
+    // ADVANCED SENSOR CONFIGURATION
+    // ============================================
+    
+    const visionModeSelect = document.getElementById('vision-mode-select');
+    const visionModeDisplay = document.getElementById('vision-mode-display');
+    const btnApplySensorConfig = document.getElementById('btn-apply-sensor-config');
+    
+    // List of all sensors
+    const allSensors = ['front', 'front_right', 'right', 'back_right', 'back', 'back_left', 'left', 'front_left'];
+    
+    // Initialize sensor range sliders and display values
+    allSensors.forEach(sensorName => {
+        const rangeInput = document.getElementById(`sensor-${sensorName}-range`);
+        const valueDisplay = document.getElementById(`sensor-${sensorName}-value`);
+        const enableCheckbox = document.getElementById(`sensor-${sensorName}-enable`);
+        
+        if (rangeInput && valueDisplay) {
+            // Update display as slider moves
+            rangeInput.addEventListener('input', (e) => {
+                const range = parseInt(e.target.value);
+                if (range === 0) {
+                    valueDisplay.textContent = '∞';
+                } else {
+                    valueDisplay.textContent = range.toString();
+                }
+            });
+        }
+        
+        // When checkbox changes, automatically switch to custom mode
+        if (enableCheckbox && visionModeSelect) {
+            enableCheckbox.addEventListener('change', () => {
+                visionModeSelect.value = 'custom';
+                if (visionModeDisplay) {
+                    visionModeDisplay.textContent = 'Custom';
+                }
+            });
+        }
+    });
+    
+    // Vision mode selection
+    if (visionModeSelect) {
+        visionModeSelect.addEventListener('change', (e) => {
+            const mode = e.target.value;
+            
+            if (visionModeDisplay) {
+                const modeNames = {
+                    '360': '360°',
+                    '270': '270°',
+                    '180': '180°',
+                    '90': '90°',
+                    'custom': 'Custom'
+                };
+                visionModeDisplay.textContent = modeNames[mode] || mode;
+            }
+            
+            // Update checkboxes based on mode
+            if (mode !== 'custom') {
+                const enabledSensors = {
+                    '360': ['front', 'front_right', 'right', 'back_right', 'back', 'back_left', 'left', 'front_left'],
+                    '270': ['front', 'front_right', 'right', 'left', 'front_left'],
+                    '180': ['front', 'front_right', 'right', 'left', 'front_left'],
+                    '90': ['front', 'front_right', 'front_left']
+                };
+                
+                const enabled = enabledSensors[mode] || [];
+                
+                allSensors.forEach(sensorName => {
+                    const checkbox = document.getElementById(`sensor-${sensorName}-enable`);
+                    if (checkbox) {
+                        checkbox.checked = enabled.includes(sensorName);
+                    }
+                });
+            }
+        });
+    }
+    
+    // Apply sensor configuration button
+    if (btnApplySensorConfig) {
+        btnApplySensorConfig.addEventListener('click', () => {
+            if (!CLIENT_SIDE || !slamEngine) {
+                alert('Sensor configuration is only available in client-side mode!');
+                return;
+            }
+            
+            // Apply vision mode first
+            if (visionModeSelect) {
+                const mode = visionModeSelect.value;
+                slamEngine.setVisionMode(mode);
+            }
+            
+            // If custom mode, apply individual sensor settings
+            if (!visionModeSelect || visionModeSelect.value === 'custom') {
+                allSensors.forEach(sensorName => {
+                    const rangeInput = document.getElementById(`sensor-${sensorName}-range`);
+                    const enableCheckbox = document.getElementById(`sensor-${sensorName}-enable`);
+                    
+                    if (enableCheckbox) {
+                        slamEngine.setSensorEnabled(sensorName, enableCheckbox.checked);
+                    }
+                    
+                    if (rangeInput) {
+                        const range = parseInt(rangeInput.value);
+                        slamEngine.setIndividualSensorRange(sensorName, range === 0 ? Infinity : range);
+                    }
+                });
+            } else {
+                // For preset modes, apply ranges to all enabled sensors
+                allSensors.forEach(sensorName => {
+                    const rangeInput = document.getElementById(`sensor-${sensorName}-range`);
+                    if (rangeInput) {
+                        const range = parseInt(rangeInput.value);
+                        slamEngine.setIndividualSensorRange(sensorName, range === 0 ? Infinity : range);
+                    }
+                });
+            }
+            
+            // Get current vision mode for display
+            const currentMode = slamEngine.getVisionMode();
+            const enabledCount = Object.values(slamEngine.getSensorConfig()).filter(s => s.enabled).length;
+            
+            alert(`✅ Sensor configuration applied!\n• Vision Mode: ${currentMode.toUpperCase()}\n• Active Sensors: ${enabledCount}/8`);
+            
+            // Refresh state and render
+            fetchAndRenderState();
+        });
+    }
+    
+    // Initialize sensor config from engine state
+    if (CLIENT_SIDE && slamEngine) {
+        const sensorConfig = slamEngine.getSensorConfig();
+        
+        allSensors.forEach(sensorName => {
+            const config = sensorConfig[sensorName];
+            if (config) {
+                const enableCheckbox = document.getElementById(`sensor-${sensorName}-enable`);
+                const rangeInput = document.getElementById(`sensor-${sensorName}-range`);
+                const valueDisplay = document.getElementById(`sensor-${sensorName}-value`);
+                
+                if (enableCheckbox) {
+                    enableCheckbox.checked = config.enabled;
+                }
+                
+                if (rangeInput && valueDisplay) {
+                    if (config.range === Infinity) {
+                        rangeInput.value = 0;
+                        valueDisplay.textContent = '∞';
+                    } else {
+                        rangeInput.value = config.range;
+                        valueDisplay.textContent = config.range.toString();
+                    }
+                }
+            }
+        });
+        
+        // Set initial vision mode
+        if (visionModeSelect && visionModeDisplay) {
+            const currentMode = slamEngine.getVisionMode();
+            visionModeSelect.value = currentMode;
+            const modeNames = {
+                '360': '360°',
+                '270': '270°',
+                '180': '180°',
+                '90': '90°',
+                'custom': 'Custom'
+            };
+            visionModeDisplay.textContent = modeNames[currentMode] || currentMode;
         }
     }
 });

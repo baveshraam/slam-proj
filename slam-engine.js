@@ -8,6 +8,21 @@ class SLAMEngine {
         this.WALL = 1;
         this.FLOOR = 0;
         
+        // Individual sensor configurations
+        this.sensorConfig = {
+            front: { enabled: true, range: Infinity },
+            front_right: { enabled: true, range: Infinity },
+            right: { enabled: true, range: Infinity },
+            back_right: { enabled: true, range: Infinity },
+            back: { enabled: true, range: Infinity },
+            back_left: { enabled: true, range: Infinity },
+            left: { enabled: true, range: Infinity },
+            front_left: { enabled: true, range: Infinity }
+        };
+        
+        // Vision mode: '360', '270', '180', '90', 'custom'
+        this.visionMode = '360';
+        
         // Angles
         this.EAST = 0;
         this.NORTH = 90;
@@ -105,6 +120,12 @@ class SLAMEngine {
         
         // Cast rays for each sensor direction
         for (const [sensorName, sensorAngle] of Object.entries(sensorAngles)) {
+            // Check if sensor is enabled
+            if (!this.sensorConfig[sensorName].enabled) {
+                sensors[sensorName] = null; // Disabled sensor
+                continue;
+            }
+            
             const rad = sensorAngle * (Math.PI / 180);
             const dx = Math.cos(rad);
             const dy = -Math.sin(rad); // Negative because y increases downward
@@ -113,8 +134,9 @@ class SLAMEngine {
             let cx = this.robot.x;
             let cy = this.robot.y;
             
-            // Ray cast until hitting a wall, map boundary, or sensor range limit
-            const maxDistance = Math.min(this.SENSOR_RANGE, this.MAP_SIZE);
+            // Use individual sensor range or global range
+            const sensorRange = this.sensorConfig[sensorName].range;
+            const maxDistance = Math.min(sensorRange, this.MAP_SIZE);
             
             while (distance < maxDistance) {
                 cx += dx;
@@ -135,13 +157,13 @@ class SLAMEngine {
                 }
                 
                 // Check if reached sensor range limit
-                if (distance >= this.SENSOR_RANGE) {
+                if (distance >= sensorRange) {
                     break;
                 }
             }
             
             // Cap distance at sensor range
-            sensors[sensorName] = Math.min(distance, this.SENSOR_RANGE);
+            sensors[sensorName] = Math.min(distance, sensorRange);
         }
         
         return sensors;
@@ -156,6 +178,9 @@ class SLAMEngine {
         
         // Update discovered map based on sensor readings
         for (const [sensorName, distance] of Object.entries(sensors)) {
+            // Skip disabled sensors
+            if (distance === null) continue;
+            
             // Get the angle for this sensor
             let sensorAngle;
             if (sensorName === 'front') sensorAngle = angle;
@@ -454,7 +479,9 @@ class SLAMEngine {
             },
             settings: {
                 map_size: this.MAP_SIZE,
-                sensor_range: this.SENSOR_RANGE
+                sensor_range: this.SENSOR_RANGE,
+                vision_mode: this.visionMode,
+                sensor_config: this.getSensorConfig()
             }
         };
     }
@@ -462,7 +489,99 @@ class SLAMEngine {
     // Configuration methods
     setSensorRange(range) {
         this.SENSOR_RANGE = range > 0 ? range : Infinity;
-        console.log(`Sensor range set to: ${this.SENSOR_RANGE === Infinity ? 'Infinite' : this.SENSOR_RANGE}`);
+        // Also update all individual sensor ranges
+        for (const sensor in this.sensorConfig) {
+            this.sensorConfig[sensor].range = this.SENSOR_RANGE;
+        }
+        console.log(`All sensor ranges set to: ${this.SENSOR_RANGE === Infinity ? 'Infinite' : this.SENSOR_RANGE}`);
+    }
+    
+    setIndividualSensorRange(sensorName, range) {
+        if (this.sensorConfig[sensorName]) {
+            this.sensorConfig[sensorName].range = range > 0 ? range : Infinity;
+            console.log(`${sensorName} range set to: ${this.sensorConfig[sensorName].range === Infinity ? 'Infinite' : this.sensorConfig[sensorName].range}`);
+            return true;
+        }
+        return false;
+    }
+    
+    setSensorEnabled(sensorName, enabled) {
+        if (this.sensorConfig[sensorName]) {
+            this.sensorConfig[sensorName].enabled = enabled;
+            console.log(`${sensorName} ${enabled ? 'enabled' : 'disabled'}`);
+            return true;
+        }
+        return false;
+    }
+    
+    setVisionMode(mode) {
+        // Vision modes: '360', '270', '180', '90', 'custom'
+        this.visionMode = mode;
+        
+        switch(mode) {
+            case '360':
+                // All 8 sensors enabled
+                for (const sensor in this.sensorConfig) {
+                    this.sensorConfig[sensor].enabled = true;
+                }
+                console.log('Vision mode: 360° (all sensors)');
+                break;
+                
+            case '270':
+                // Disable back sensors (back, back_left, back_right)
+                this.sensorConfig.front.enabled = true;
+                this.sensorConfig.front_right.enabled = true;
+                this.sensorConfig.right.enabled = true;
+                this.sensorConfig.back_right.enabled = false;
+                this.sensorConfig.back.enabled = false;
+                this.sensorConfig.back_left.enabled = false;
+                this.sensorConfig.left.enabled = true;
+                this.sensorConfig.front_left.enabled = true;
+                console.log('Vision mode: 270° (no rear sensors)');
+                break;
+                
+            case '180':
+                // Front hemisphere only (front, front_left, front_right, left, right)
+                this.sensorConfig.front.enabled = true;
+                this.sensorConfig.front_right.enabled = true;
+                this.sensorConfig.right.enabled = true;
+                this.sensorConfig.back_right.enabled = false;
+                this.sensorConfig.back.enabled = false;
+                this.sensorConfig.back_left.enabled = false;
+                this.sensorConfig.left.enabled = true;
+                this.sensorConfig.front_left.enabled = true;
+                console.log('Vision mode: 180° (front hemisphere)');
+                break;
+                
+            case '90':
+                // Front 90 degrees only (front, front_left, front_right)
+                this.sensorConfig.front.enabled = true;
+                this.sensorConfig.front_right.enabled = true;
+                this.sensorConfig.right.enabled = false;
+                this.sensorConfig.back_right.enabled = false;
+                this.sensorConfig.back.enabled = false;
+                this.sensorConfig.back_left.enabled = false;
+                this.sensorConfig.left.enabled = false;
+                this.sensorConfig.front_left.enabled = true;
+                console.log('Vision mode: 90° (front cone only)');
+                break;
+                
+            case 'custom':
+                // Don't change anything - let user customize
+                console.log('Vision mode: Custom (user defined)');
+                break;
+                
+            default:
+                console.warn('Unknown vision mode:', mode);
+        }
+    }
+    
+    getSensorConfig() {
+        return { ...this.sensorConfig };
+    }
+    
+    getVisionMode() {
+        return this.visionMode;
     }
     
     setMapSize(newSize) {
