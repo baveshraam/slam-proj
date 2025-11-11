@@ -29,11 +29,23 @@
         </header>
         
         <div class="main-content">
-            <div class="canvas-wrapper">
-                <canvas id="slamCanvas" width="600" height="600"></canvas>
-                <div class="canvas-overlay">
-                    <div class="grid-label top-left">Origin (0,0)</div>
-                    <div class="grid-label bottom-right">15x15 Grid</div>
+            <div class="dual-canvas-container">
+                <div class="canvas-wrapper">
+                    <h3 class="canvas-title">True Map</h3>
+                    <canvas id="slamCanvas" width="1000" height="1000"></canvas>
+                    <div class="canvas-overlay">
+                        <div class="grid-label top-left">Origin (0,0)</div>
+                        <div class="grid-label bottom-right">50x50 Grid</div>
+                    </div>
+                </div>
+                
+                <div class="canvas-wrapper">
+                    <h3 class="canvas-title">Discovered Map</h3>
+                    <canvas id="discoveredCanvas" width="1000" height="1000"></canvas>
+                    <div class="canvas-overlay">
+                        <div class="grid-label top-left">Origin (0,0)</div>
+                        <div class="grid-label bottom-right">50x50 Grid</div>
+                    </div>
                 </div>
             </div>
             
@@ -56,6 +68,28 @@
                         <div class="info-row">
                             <span class="label">Direction:</span>
                             <span class="value" id="robot-direction">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="info-card">
+                    <h3>Odometry</h3>
+                    <div class="robot-info">
+                        <div class="info-row">
+                            <span class="label">Moves:</span>
+                            <span class="value" id="move-count">0</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Rotations:</span>
+                            <span class="value" id="rotation-count">0</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Distance:</span>
+                            <span class="value" id="distance-traveled">0.0</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Path Points:</span>
+                            <span class="value" id="path-length">1</span>
                         </div>
                     </div>
                 </div>
@@ -93,6 +127,30 @@
                         <div class="control-item">
                             <kbd>E</kbd>
                             <span>Toggle Edit Mode</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="info-card">
+                    <h3>Path Planning (A*)</h3>
+                    <div class="editor-controls">
+                        <div class="editor-status">
+                            <span id="path-status">No goal set</span>
+                        </div>
+                        <div class="button-group">
+                            <button id="btn-set-goal" class="editor-btn">Set Goal (Click Map)</button>
+                            <button id="btn-auto-navigate" class="editor-btn" disabled>Auto Navigate</button>
+                            <button id="btn-clear-goal" class="editor-btn">Clear Goal</button>
+                        </div>
+                        <div class="path-info">
+                            <div class="info-row">
+                                <span class="label">Path Length:</span>
+                                <span class="value" id="path-length-value">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Using:</span>
+                                <span class="value" id="path-map-type">Discovered Map</span>
+                            </div>
                         </div>
                     </div>
                 </div>

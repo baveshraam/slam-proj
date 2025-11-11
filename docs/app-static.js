@@ -4,9 +4,9 @@
 const canvas = document.getElementById('mapCanvas');
 const ctx = canvas.getContext('2d');
 
-// Configuration
-const GRID_SIZE = 15;
-const CELL_SIZE = canvas.width / GRID_SIZE;
+// Configuration - Updated for 50x50 grid with larger canvas
+const GRID_SIZE = 50; // Changed from 15 to 50
+const CELL_SIZE = canvas.width / GRID_SIZE; // 1000/50 = 20px per cell
 
 // Robot state
 let robot = {
