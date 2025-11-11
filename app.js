@@ -1,5 +1,6 @@
 // API Configuration
-const API_BASE_URL = 'http://127.0.0.1:5000';
+// For production, set BACKEND_URL in your environment or use the prompt
+const API_BASE_URL = window.BACKEND_URL || 'http://127.0.0.1:5000';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Get canvases and contexts

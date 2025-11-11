@@ -1,136 +1,269 @@
-# SLAM Simulation Backend
+# 🤖 Smart Wheelchair SLAM Simulation# SLAM Simulation Backend
 
-# SLAM Simulation 🤖
 
-[![Live Demo](https://img.shields.io/badge/demo-live-success)](https://YOUR_USERNAME.github.io/SLAM-Proj/)
+
+A real-time **Simultaneous Localization and Mapping (SLAM)** simulation for autonomous wheelchair navigation. Features include sensor-based mapping, A* pathfinding, and interactive visualization.# SLAM Simulation 🤖
+
+
+
+🔗 **Live Demo**: [slam-proj.vercel.app](https://slam-proj.vercel.app)[![Live Demo](https://img.shields.io/badge/demo-live-success)](https://YOUR_USERNAME.github.io/SLAM-Proj/)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+> **⚠️ Backend Required**: The Vercel site shows "Disconnected" because the backend isn't deployed yet. See [DEPLOYMENT.md](DEPLOYMENT.md) for 5-minute setup!
 
 > **Simultaneous Localization And Mapping** - Interactive visualization and simulation platform with dual deployment options (Flask + GitHub Pages)
 
-## 🌟 Features
-
-- **Real-time Robot Simulation** - WASD controls with smooth movement
-- **Interactive Map Editor** - Click to toggle walls, create custom mazes  
-- **Sensor Visualization** - See distance sensors in action
-- **Map Persistence** - Save/load custom map configurations with custom names
-- **Dual Deployment** - Flask backend OR static GitHub Pages version
-- **Beautiful UI** - Modern glassmorphism design with animations
-
 ---
 
-## 🚀 Quick Start
+## 🌟 Features
 
-### Option 1: Flask Version (Full Features)
+## ✨ Features
 
-```bash
+- **Real-time Robot Simulation** - WASD controls with smooth movement
+
+- **🗺️ Dual Map View**: True map vs. Discovered map (realistic SLAM)- **Interactive Map Editor** - Click to toggle walls, create custom mazes  
+
+- **📡 Distance Sensors**: 8-directional ray-casting- **Sensor Visualization** - See distance sensors in action
+
+- **🎯 A* Pathfinding**: Optimal path planning through discovered areas- **Map Persistence** - Save/load custom map configurations with custom names
+
+- **🤖 Auto-Navigation**: Autonomous goal-seeking- **Dual Deployment** - Flask backend OR static GitHub Pages version
+
+- **🎨 Map Editor**: Interactive wall editing- **Beautiful UI** - Modern glassmorphism design with animations
+
+- **📊 Odometry**: Position, distance, path tracking
+
+- **💾 Save/Load**: Persistent map configurations---
+
+
+
+---## 🚀 Quick Start
+
+
+
+## 🚀 Quick Start (5 minutes)### Option 1: Flask Version (Full Features)
+
+
+
+### Option 1: Deploy Online (Recommended)```bash
+
 # Install dependencies
-pip install flask flask-cors numpy
 
-# Run server
-python app.py
+1. **Deploy Backend** (Free on Render.com):pip install flask flask-cors numpy
+
+   - Go to [render.com](https://render.com) → New Web Service
+
+   - Connect `baveshraam/slam-proj` repository# Run server
+
+   - Wait 5 mins for deploymentpython app.py
+
+   - Copy your backend URL
 
 # Open browser
-http://localhost:5000
-```
+
+2. **Update Frontend**:http://localhost:5000
+
+   - Edit `config.js`: Change URL to your backend```
+
+   - Push to GitHub → Vercel auto-deploys
 
 ### Option 2: Static Version (GitHub Pages)
 
+✅ **Done!** Visit your Vercel URL and it works!
+
 The static version uses browser localStorage instead of a backend. Perfect for free hosting!
+
+📖 Full guide: [DEPLOYMENT.md](DEPLOYMENT.md)
 
 See **[GITHUB_PAGES.md](GITHUB_PAGES.md)** for deployment instructions.
 
+### Option 2: Run Locally
+
 ---
 
-## 🎮 Controls
+```bash
 
-| Key | Action |
-|-----|--------|
-| <kbd>W</kbd> / <kbd>↑</kbd> | Move Forward |
-| <kbd>S</kbd> / <kbd>↓</kbd> | Move Backward |
+git clone https://github.com/baveshraam/slam-proj.git## 🎮 Controls
+
+cd slam-proj
+
+pip install -r requirements.txt| Key | Action |
+
+python app.py|-----|--------|
+
+# Visit http://localhost:5000| <kbd>W</kbd> / <kbd>↑</kbd> | Move Forward |
+
+```| <kbd>S</kbd> / <kbd>↓</kbd> | Move Backward |
+
 | <kbd>A</kbd> / <kbd>←</kbd> | Rotate Left |
-| <kbd>D</kbd> / <kbd>→</kbd> | Rotate Right |
+
+---| <kbd>D</kbd> / <kbd>→</kbd> | Rotate Right |
+
 | <kbd>R</kbd> | Reset Position |
-| <kbd>E</kbd> | Toggle Edit Mode |
 
----
+## 🎮 Controls| <kbd>E</kbd> | Toggle Edit Mode |
 
-## 🗺️ Map Editor
 
-1. Press <kbd>E</kbd> to enable **Edit Mode** (canvas gets cyan border)
+
+| Key | Action | Key | Action |---
+
+|-----|--------|-----|--------|
+
+| `W` / `↑` | Move Forward | `A` / `←` | Rotate Left |## 🗺️ Map Editor
+
+| `S` / `↓` | Move Backward | `D` / `→` | Rotate Right |
+
+| `R` | Reset | `E` | Edit Mode |1. Press <kbd>E</kbd> to enable **Edit Mode** (canvas gets cyan border)
+
 2. Click on grid cells to toggle walls/floors
-3. Enter a custom map name (e.g., "my_maze") and click **Save Map**
-4. Load saved maps from the dropdown list or enter name manually
 
-### Saving Maps with Custom Names
+**Path Planning**: Click "Set Goal" → Click map → "Auto Navigate"  3. Enter a custom map name (e.g., "my_maze") and click **Save Map**
 
-**Flask Version:**
+**Map Editor**: Press `E` → Click cells to toggle walls4. Load saved maps from the dropdown list or enter name manually
+
+
+
+---### Saving Maps with Custom Names
+
+
+
+## 🏗️ Architecture**Flask Version:**
+
 - Maps saved as JSON files in `maps/` folder with your custom name
-- Example: Entering "office_layout" saves as `maps/office_layout.json`
-- Persistent across sessions and shareable
 
-**Static Version:**
-- Maps saved in browser localStorage with your custom name
-- Browser-specific storage (not shared between devices)
-- Cleared if you clear browser data
+```- Example: Entering "office_layout" saves as `maps/office_layout.json`
+
+Frontend (Vercel)          Backend (Render)- Persistent across sessions and shareable
+
+┌──────────────┐          ┌──────────────┐
+
+│ HTML/CSS/JS  │◄────────►│ Flask/Python │**Static Version:**
+
+│ Rendering    │   HTTP   │ Robot Logic  │- Maps saved in browser localStorage with your custom name
+
+│ User Input   │          │ A* Search    │- Browser-specific storage (not shared between devices)
+
+└──────────────┘          └──────────────┘- Cleared if you clear browser data
+
+```
 
 ### Environment Variables
 
-- `PORT`: Server port (default: 5000)
-- `FLASK_DEBUG`: Enable debug mode (default: True)
+---
 
-```cmd
-set PORT=8080
-set FLASK_DEBUG=False
-python app.py
+- `PORT`: Server port (default: 5000)
+
+## 📁 Key Files- `FLASK_DEBUG`: Enable debug mode (default: True)
+
+
+
+- `app.py` - Flask backend (robot simulation, pathfinding)```cmd
+
+- `app.js` - Frontend (rendering, UI controls)set PORT=8080
+
+- `config.js` - Backend URL configurationset FLASK_DEBUG=False
+
+- `DEPLOYMENT.md` - Deployment instructionspython app.py
+
 ```
+
+---
 
 ## API Endpoints
 
-### GET `/api/get_state`
-Get current simulation state including robot position and map.
+## 🔧 Tech Stack
 
-**Response:**
+### GET `/api/get_state`
+
+**Backend**: Flask, NumPy, Python 3.11+  Get current simulation state including robot position and map.
+
+**Frontend**: Vanilla JS, HTML5 Canvas, CSS3  
+
+**Hosting**: Vercel (frontend) + Render (backend)**Response:**
+
 ```json
-{
+
+---{
+
   "success": true,
-  "data": {
+
+## 📊 SLAM Implementation  "data": {
+
     "robot": {
-      "x": 1,
-      "y": 1,
-      "angle": 0
-    },
-    "true_map": [[1,1,1,...], ...],
-    "map_info": {
+
+✅ **Stage 1**: 50x50 grid + 8 sensors        "x": 1,
+
+✅ **Stage 2**: Discovered map tracking        "y": 1,
+
+✅ **Stage 3**: Dual visualization        "angle": 0
+
+✅ **Stage 4**: Odometry tracking      },
+
+✅ **Stage 5**: A* pathfinding      "true_map": [[1,1,1,...], ...],
+
+✅ **Stage 6**: Auto-navigation      "map_info": {
+
       "width": 15,
-      "height": 15,
+
+---      "height": 15,
+
       "total_cells": 225,
-      "wall_cells": 55,
+
+## 🐛 Troubleshooting      "wall_cells": 55,
+
       "floor_cells": 170
-    }
-  }
+
+**"Disconnected" on Vercel?**      }
+
+→ Backend not deployed. Follow [DEPLOYMENT.md](DEPLOYMENT.md)  }
+
 }
-```
+
+**Slow first load on Render?**  ```
+
+→ Free tier sleeps after 15 min (30-60s wake time)
 
 ### POST `/api/move`
-Move robot forward one step in current direction.
+
+**CORS errors?**  Move robot forward one step in current direction.
+
+→ Check `config.js` has correct backend URL
 
 **Response (Success):**
-```json
+
+---```json
+
 {
-  "success": true,
+
+## 👤 Author  "success": true,
+
   "message": "Robot moved forward",
-  "data": {"x": 2, "y": 1, "angle": 0}
-}
+
+**Bavesh Raam**    "data": {"x": 2, "y": 1, "angle": 0}
+
+GitHub: [@baveshraam](https://github.com/baveshraam)}
+
 ```
 
+---
+
 **Response (Blocked):**
-```json
+
+## 📝 License```json
+
 {
-  "success": false,
+
+MIT License  "success": false,
+
   "message": "Cannot move - wall or boundary ahead",
-  "data": {"x": 1, "y": 1, "angle": 0}
+
+---  "data": {"x": 1, "y": 1, "angle": 0}
+
 }
-```
+
+**⭐ Star this repo if helpful!** | 📖 [Full Deployment Guide](DEPLOYMENT.md)```
+
 
 ### POST `/api/rotate_left`
 Rotate robot 90° counter-clockwise.

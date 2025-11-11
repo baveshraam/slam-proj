@@ -1,320 +1,149 @@
-# 🚀 SLAM Simulation - Deployment Guide
+# 🚀 Deployment Guide - SLAM Wheelchair Simulation
 
-## Running Locally on Localhost
+## ⚠️ Important: Backend + Frontend Architecture
 
-### Option 1: Integrated Flask Server (Recommended)
+This project has **two separate components**:
+1. **Backend** (Flask/Python) - Handles robot logic, pathfinding, map state
+2. **Frontend** (HTML/CSS/JS) - User interface
 
-The Flask backend now serves the frontend files directly!
-
-```cmd
-cd c:\Bavesh\Takumi\SLAM-Proj
-python app.py
-```
-
-Then visit: **http://localhost:5000**
-
-✅ **Benefits:**
-- Single server for both frontend and backend
-- No CORS issues
-- Same setup for local and production
-- Ready for Vercel deployment
-
-### Option 2: Separate Servers (Development)
-
-**Terminal 1 - Backend:**
-```cmd
-cd c:\Bavesh\Takumi\SLAM-Proj
-python app.py
-```
-
-**Terminal 2 - Frontend:**
-```cmd
-cd c:\Bavesh\Takumi\SLAM-Proj
-python -m http.server 8000
-```
-
-Visit: http://localhost:8000
-
-## Deploying to Vercel
-
-### Prerequisites
-1. Install Vercel CLI:
-   ```cmd
-   npm install -g vercel
-   ```
-
-2. Create Vercel account at https://vercel.com
-
-### Deployment Steps
-
-1. **Initialize Git (if not already):**
-   ```cmd
-   cd c:\Bavesh\Takumi\SLAM-Proj
-   git init
-   git add .
-   git commit -m "Initial commit"
-   ```
-
-2. **Deploy to Vercel:**
-   ```cmd
-   vercel
-   ```
-
-3. **Follow the prompts:**
-   - Link to existing project? → No
-   - Project name? → slam-simulation (or your choice)
-   - Directory? → ./
-   - Want to modify settings? → No
-
-4. **Production Deployment:**
-   ```cmd
-   vercel --prod
-   ```
-
-### Vercel Configuration
-
-The `vercel.json` file is already configured:
-
-```json
-{
-  "version": 2,
-  "builds": [
-    {
-      "src": "app.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "app.py"
-    }
-  ]
-}
-```
-
-### Environment Variables on Vercel
-
-Set these in Vercel Dashboard → Settings → Environment Variables:
-
-- `FLASK_DEBUG`: `False` (for production)
-- `PORT`: `5000` (optional, Vercel sets this automatically)
-
-## 📝 Important Notes for Vercel
-
-### 1. Dependencies
-Make sure `requirements.txt` is complete:
-```txt
-Flask==3.0.0
-numpy==1.26.2
-Flask-Cors==4.0.0
-```
-
-### 2. File Persistence
-⚠️ **Vercel is serverless** - saved maps won't persist between deployments.
-
-For persistent storage, consider:
-- Use Vercel KV (Redis)
-- Use external storage (AWS S3, Google Cloud Storage)
-- Database (MongoDB, PostgreSQL)
-
-### 3. Static Files
-Flask now serves static files directly:
-- `/` → serves `index.html`
-- `/style.css` → serves CSS
-- `/app.js` → serves JavaScript
-
-### 4. API Endpoints
-All API endpoints are under `/api/*`:
-- `/api/get_state`
-- `/api/move`
-- `/api/toggle_cell`
-- `/api/save_map`
-- `/api/load_map`
-- etc.
-
-## Testing Before Deployment
-
-### 1. Test Locally
-```cmd
-python app.py
-```
-Visit http://localhost:5000
-
-### 2. Test All Features
-- ✅ Robot movement (WASD)
-- ✅ Map editing (E key + click)
-- ✅ Save/Load maps
-- ✅ Reset robot
-- ✅ All API endpoints
-
-### 3. Check for Errors
-Open browser console (F12) and check for:
-- CORS errors (should be none)
-- 404 errors (should be none)
-- JavaScript errors (should be none)
-
-## Alternative Hosting Options
-
-### Heroku
-
-1. Create `Procfile`:
-   ```
-   web: python app.py
-   ```
-
-2. Deploy:
-   ```cmd
-   heroku create slam-simulation
-   git push heroku main
-   ```
-
-### Railway
-
-1. Connect GitHub repo
-2. Railway auto-detects Python
-3. Set environment variables
-4. Deploy automatically
-
-### PythonAnywhere
-
-1. Upload files
-2. Set up virtualenv
-3. Configure WSGI file
-4. Set working directory
-
-## Local Development Best Practices
-
-### 1. Use Virtual Environment
-```cmd
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### 2. Environment Variables
-Create `.env` file:
-```env
-FLASK_DEBUG=True
-PORT=5000
-```
-
-### 3. Git Ignore
-Create `.gitignore`:
-```gitignore
-.venv/
-__pycache__/
-*.pyc
-.env
-maps/*.json
-!maps/example_maze.json
-```
-
-## Troubleshooting
-
-### Issue: "Cannot GET /"
-**Solution:** Make sure Flask is serving the index.html:
-```python
-@app.route('/')
-def serve_index():
-    return send_from_directory('.', 'index.html')
-```
-
-### Issue: API calls fail on Vercel
-**Solution:** Update `API_BASE_URL` in `app.js`:
-```javascript
-const API_BASE_URL = window.location.origin; // Uses current domain
-```
-
-### Issue: Maps don't save on Vercel
-**Solution:** Vercel is serverless. Implement external storage or use in-memory only.
-
-### Issue: CORS errors
-**Solution:** CORS is already configured in app.py:
-```python
-CORS(app)
-```
-
-## Performance Optimization
-
-### 1. Caching
-Add to Flask:
-```python
-@app.after_request
-def add_header(response):
-    response.cache_control.max_age = 300  # 5 minutes
-    return response
-```
-
-### 2. Compression
-Install and use:
-```cmd
-pip install flask-compress
-```
-
-```python
-from flask_compress import Compress
-Compress(app)
-```
-
-### 3. Production WSGI Server
-For production (not Vercel):
-```cmd
-pip install gunicorn
-gunicorn app:app
-```
-
-## Security Considerations
-
-### 1. Production Settings
-In `app.py` for production:
-```python
-app.config['DEBUG'] = False
-app.config['TESTING'] = False
-```
-
-### 2. CORS Configuration
-For production, limit CORS:
-```python
-CORS(app, origins=['https://yourdomain.com'])
-```
-
-### 3. Input Validation
-Already implemented in endpoints:
-- Coordinate validation
-- Border protection
-- Error handling
-
-## Monitoring
-
-### Local Development
-- Check terminal for logs
-- Use browser DevTools
-- Monitor network requests
-
-### Production (Vercel)
-- View logs: `vercel logs`
-- Monitor in Vercel Dashboard
-- Set up error tracking (Sentry, etc.)
-
-## Next Steps After Deployment
-
-1. ✅ Test all features on live URL
-2. ✅ Share URL with team/users
-3. ✅ Monitor performance and errors
-4. ✅ Implement user feedback
-5. ✅ Add more map templates
-6. ✅ Consider persistent storage solution
+**Vercel can only host the frontend.** You need to deploy the backend separately.
 
 ---
 
-**Quick Deploy Checklist:**
-- [ ] All dependencies in `requirements.txt`
-- [ ] `vercel.json` configured
-- [ ] Tested locally on http://localhost:5000
-- [ ] Git committed
-- [ ] Run `vercel --prod`
-- [ ] Test live URL
-- [ ] Share with team
+## 📦 Quick Fix: Deploy Backend to Render.com (Free, Recommended)
 
-🎉 **Your SLAM simulation is now deployment-ready!**
+### Step 1: Deploy Backend on Render
+
+1. Go to [render.com](https://render.com) and sign up (free)
+2. Click **"New +"** → **"Web Service"**
+3. Connect your GitHub repository: `baveshraam/slam-proj`
+4. Configure:
+   - **Name**: `slam-backend`
+   - **Environment**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `python app.py`
+   - **Plan**: Free (will sleep after inactivity)
+5. Click **"Create Web Service"**
+6. Wait 5-10 minutes for deployment
+7. **Copy your backend URL** (e.g., `https://slam-backend-xxxx.onrender.com`)
+
+### Step 2: Update Frontend Configuration
+
+1. In your repository, edit `config.js`:
+   ```javascript
+   window.BACKEND_URL = 'https://slam-backend-xxxx.onrender.com';
+   ```
+   (Replace with your actual Render URL)
+
+2. Commit and push:
+   ```bash
+   git add config.js
+   git commit -m "Update backend URL for production"
+   git push origin main
+   ```
+
+3. Vercel will automatically redeploy your frontend
+
+### Step 3: Test Your Deployment
+
+Visit your Vercel URL - it should now connect to the backend and work! 🎉
+
+**Note:** Render free tier sleeps after 15 min of inactivity. First load may take 30-60 seconds to wake up.
+
+---
+
+## 🏠 Alternative: Run Locally Only
+
+If you just want to test locally:
+
+1. **Start the backend:**
+   ```cmd
+   cd c:\Bavesh\Takumi\SLAM-Proj
+   python app.py
+   ```
+
+2. **Open your browser:**
+   - Vercel site will connect to `http://127.0.0.1:5000`
+   - Make sure `config.js` has: `window.BACKEND_URL = 'http://127.0.0.1:5000';`
+
+---
+
+## 📦 Other Backend Hosting Options
+
+### Railway.app (Free)
+1. Go to [railway.app](https://railway.app) and sign up
+2. **"New Project"** → **"Deploy from GitHub repo"**
+3. Select `baveshraam/slam-proj`
+4. Railway auto-detects Python
+5. Copy your URL and update `config.js`
+
+### PythonAnywhere (Free)
+1. Sign up at [pythonanywhere.com](https://www.pythonanywhere.com)
+2. Upload files or clone from GitHub
+3. Create Flask web app
+4. Copy URL and update `config.js`
+
+### Heroku (Paid)
+1. Create `Procfile`: `web: python app.py`
+2. Deploy: `heroku create slam-simulation && git push heroku main`
+
+---
+
+## 🔧 Troubleshooting
+
+### Frontend Shows "Disconnected"
+1. Open browser DevTools (F12) → Console
+2. Check for errors
+3. Verify backend URL in `config.js` is correct
+4. Test backend health: `https://your-backend-url/health`
+5. If using Render free tier, first load takes 30-60 seconds (waking up)
+
+### CORS Errors
+- Backend already has CORS enabled
+- Make sure backend URL has no trailing slash
+- Check backend is actually running
+
+### Backend Logs (Render)
+- Go to Render dashboard
+- Click your service
+- View logs tab for errors
+
+---
+
+## 📝 Files You Need to Update
+
+1. **config.js** - Change backend URL from localhost to your deployed URL
+2. That's it! Everything else is already configured.
+
+---
+
+## ✅ Deployment Checklist
+
+- [x] Backend configured with CORS
+- [x] requirements.txt has all dependencies
+- [x] Flask app runs on 0.0.0.0
+- [x] Frontend loads config.js
+- [ ] Deploy backend to Render/Railway
+- [ ] Copy backend URL
+- [ ] Update config.js with backend URL
+- [ ] Push to GitHub (Vercel auto-deploys frontend)
+- [ ] Test live URL
+
+---
+
+## 🎉 Expected Result
+
+After following Step 1 & 2:
+- ✅ Vercel hosts your frontend (HTML/CSS/JS)
+- ✅ Render hosts your backend (Flask/Python)
+- ✅ Frontend connects to backend via config.js
+- ✅ Full SLAM simulation works online!
+
+---
+
+## 💡 Why This Setup?
+
+**Vercel** = Great for static sites, limited Python support  
+**Render** = Perfect for Flask apps, free tier includes 750 hours/month
+
+This is the **simplest, free solution** for your SLAM project! 🚀
