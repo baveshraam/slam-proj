@@ -108,7 +108,7 @@ class SLAM3DEngine {
         this.updateDiscoveredMap();
         
         // Current viewing level (for UI, which Z-level to display)
-        this.currentViewLevel = 1;
+        this.currentViewLevel = 1;  // Start at Z=1 where robot is, not Z=0 (floor)
     }
     
     /**
@@ -123,63 +123,191 @@ class SLAM3DEngine {
             )
         );
         
-        // Create floor (Z=0) and outer walls
+        // Create HOUSE/ROOM layout
+        // Z=0 is the floor (solid everywhere)
         for (let y = 0; y < this.MAP_DEPTH; y++) {
             for (let x = 0; x < this.MAP_WIDTH; x++) {
-                // Floor everywhere at Z=0
-                map[0][y][x] = this.SOLID;
-                
-                // Outer walls (borders) going up to height 5
+                map[0][y][x] = this.SOLID;  // Floor
+            }
+        }
+        
+        // Create OUTER WALLS of the house (perimeter walls going up to height 8)
+        const wallHeight = 8;
+        for (let y = 0; y < this.MAP_DEPTH; y++) {
+            for (let x = 0; x < this.MAP_WIDTH; x++) {
                 if (x === 0 || x === this.MAP_WIDTH - 1 || 
                     y === 0 || y === this.MAP_DEPTH - 1) {
-                    for (let z = 0; z < Math.min(5, this.MAP_HEIGHT); z++) {
+                    for (let z = 1; z <= wallHeight; z++) {
+                        if (z < this.MAP_HEIGHT) {
+                            map[z][y][x] = this.SOLID;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Create DOORWAYS in the outer walls (openings)
+        // Front door (south wall, middle)
+        for (let z = 1; z <= 3; z++) {
+            for (let x = 23; x <= 27; x++) {
+                if (z < this.MAP_HEIGHT) {
+                    map[z][0][x] = this.EMPTY;
+                }
+            }
+        }
+        
+        // Back door (north wall, middle)
+        for (let z = 1; z <= 3; z++) {
+            for (let x = 23; x <= 27; x++) {
+                if (z < this.MAP_HEIGHT) {
+                    map[z][this.MAP_DEPTH - 1][x] = this.EMPTY;
+                }
+            }
+        }
+        
+        // === INTERIOR ROOMS ===
+        
+        // LIVING ROOM - Large open space (bottom-left quadrant)
+        // No walls needed, it's open
+        
+        // KITCHEN - Horizontal wall separator with doorway (middle-left)
+        for (let z = 1; z <= 3; z++) {
+            for (let x = 5; x <= 22; x++) {
+                if (z < this.MAP_HEIGHT) {
+                    map[z][15][x] = this.SOLID;
+                }
+            }
+        }
+        // Kitchen doorway
+        for (let z = 1; z <= 3; z++) {
+            for (let x = 12; x <= 15; x++) {
+                if (z < this.MAP_HEIGHT) {
+                    map[z][15][x] = this.EMPTY;
+                }
+            }
+        }
+        
+        // BEDROOM 1 - Vertical wall separator (middle-right)
+        for (let z = 1; z <= 3; z++) {
+            for (let y = 5; y <= 25; y++) {
+                if (z < this.MAP_HEIGHT) {
+                    map[z][y][30] = this.SOLID;
+                }
+            }
+        }
+        // Bedroom 1 doorway
+        for (let z = 1; z <= 3; z++) {
+            for (let y = 12; y <= 15; y++) {
+                if (z < this.MAP_HEIGHT) {
+                    map[z][y][30] = this.EMPTY;
+                }
+            }
+        }
+        
+        // BEDROOM 2 - Horizontal wall (top-right)
+        for (let z = 1; z <= 3; z++) {
+            for (let x = 30; x <= 45; x++) {
+                if (z < this.MAP_HEIGHT) {
+                    map[z][25][x] = this.SOLID;
+                }
+            }
+        }
+        // Bedroom 2 doorway
+        for (let z = 1; z <= 3; z++) {
+            for (let x = 36; x <= 39; x++) {
+                if (z < this.MAP_HEIGHT) {
+                    map[z][25][x] = this.EMPTY;
+                }
+            }
+        }
+        
+        // === FURNITURE / OBSTACLES ===
+        
+        // Kitchen counter (small rectangle)
+        for (let z = 1; z <= 2; z++) {
+            for (let y = 17; y <= 20; y++) {
+                for (let x = 8; x <= 12; x++) {
+                    if (z < this.MAP_HEIGHT) {
                         map[z][y][x] = this.SOLID;
                     }
                 }
             }
         }
         
-        // Create internal obstacles (walls at ground level, Z=1-2)
+        // Dining table (center-left)
         for (let z = 1; z <= 2; z++) {
-            // Horizontal wall
-            for (let x = 10; x < 25; x++) {
-                map[z][10][x] = this.SOLID;
-            }
-            
-            // Vertical wall
-            for (let y = 15; y < 30; y++) {
-                map[z][y][15] = this.SOLID;
-            }
-            
-            // Small obstacles
-            for (let y = 20; y < 25; y++) {
-                map[z][y][30] = this.SOLID;
+            for (let y = 7; y <= 10; y++) {
+                for (let x = 10; x <= 14; x++) {
+                    if (z < this.MAP_HEIGHT) {
+                        map[z][y][x] = this.SOLID;
+                    }
+                }
             }
         }
         
-        // Create a platform (elevated floor at Z=3)
-        for (let y = 35; y < 45; y++) {
-            for (let x = 35; x < 45; x++) {
-                map[3][y][x] = this.SOLID;
+        // Bed in bedroom 1 (rectangular)
+        for (let z = 1; z <= 2; z++) {
+            for (let y = 8; y <= 12; y++) {
+                for (let x = 35; x <= 40; x++) {
+                    if (z < this.MAP_HEIGHT) {
+                        map[z][y][x] = this.SOLID;
+                    }
+                }
             }
         }
         
-        // Create stairs (ascending from Z=1 to Z=4)
-        for (let step = 0; step < 4; step++) {
+        // Wardrobe in bedroom 2 (tall obstacle)
+        for (let z = 1; z <= 4; z++) {
+            for (let y = 28; y <= 31; y++) {
+                for (let x = 35; x <= 38; x++) {
+                    if (z < this.MAP_HEIGHT) {
+                        map[z][y][x] = this.SOLID;
+                    }
+                }
+            }
+        }
+        
+        // === STAIRS (ascending from Z=1 to Z=5) ===
+        for (let step = 0; step < 5; step++) {
             const stepZ = 1 + step;
-            const stepY = 30 + step;
-            for (let x = 20; x < 25; x++) {
+            const stepY = 35 + step;
+            for (let x = 15; x <= 20; x++) {
                 if (stepZ < this.MAP_HEIGHT && stepY < this.MAP_DEPTH) {
                     map[stepZ][stepY][x] = this.SOLID;
                 }
             }
         }
         
-        // Create ceiling over part of map (Z=4)
-        for (let y = 5; y < 15; y++) {
-            for (let x = 5; x < 20; x++) {
-                if (4 < this.MAP_HEIGHT) {
-                    map[4][y][x] = this.SOLID;
+        // === SECOND FLOOR (platform at Z=5) ===
+        for (let y = 40; y < 48; y++) {
+            for (let x = 10; x < 25; x++) {
+                if (5 < this.MAP_HEIGHT && y < this.MAP_DEPTH && x < this.MAP_WIDTH) {
+                    map[5][y][x] = this.SOLID;
+                }
+            }
+        }
+        
+        // Railing around second floor
+        for (let y = 40; y < 48; y++) {
+            if (6 < this.MAP_HEIGHT) {
+                map[6][y][10] = this.SOLID;  // Left railing
+                map[6][y][24] = this.SOLID;  // Right railing
+            }
+        }
+        for (let x = 10; x < 25; x++) {
+            if (6 < this.MAP_HEIGHT) {
+                map[6][40][x] = this.SOLID;  // Front railing
+                map[6][47][x] = this.SOLID;  // Back railing (if in bounds)
+            }
+        }
+        
+        // === CEILING (partial, over some rooms) ===
+        // Ceiling over living room area
+        const ceilingZ = wallHeight;
+        for (let y = 5; y < 20; y++) {
+            for (let x = 5; x < 25; x++) {
+                if (ceilingZ < this.MAP_HEIGHT) {
+                    map[ceilingZ][y][x] = this.SOLID;
                 }
             }
         }
