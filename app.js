@@ -6,7 +6,7 @@ const API_BASE_URL = window.BACKEND_URL || 'http://127.0.0.1:5000';
 let slamEngine = null;
 let slamEngine3D = null;
 let is3DMode = false;  // Toggle between 2D and 3D
-let currentZLevel = 0;  // Current z-level being viewed in 3D mode
+let currentZLevel = 1;  // Current z-level being viewed in 3D mode (START AT 1, not 0!)
 
 if (CLIENT_SIDE) {
     try {
@@ -727,14 +727,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear canvases
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // If in 3D mode, refresh state from 3D engine
-        if (is3DMode && CLIENT_SIDE && slamEngine3D) {
-            updateFromEngine3D();
-        }
+        // Note: We don't call updateFromEngine3D() here because it's called
+        // by the functions that modify state (sendMoveCommand, reset, etc.)
+        // This avoids redundant state fetches
         
-        console.log('🎨 Rendering - Mode:', is3DMode ? '3D' : '2D');
-        console.log('🗺️ TrueMap:', trueMap?.length, 'rows');
-        console.log('🤖 Robot:', robot);
+        console.log('🎨 Rendering:', {
+            mode: is3DMode ? '3D' : '2D',
+            zLevel: currentZLevel,
+            trueMapSize: `${trueMap?.length}x${trueMap[0]?.length}`,
+            discoveredMapSize: `${discoveredMap?.length}x${discoveredMap[0]?.length}`,
+            robotPos: `(${robot.x}, ${robot.y}${robot.z !== undefined ? ', ' + robot.z : ''})`
+        });
         
         // Draw true map (left canvas)
         drawGrid();
@@ -822,32 +825,41 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function fetchAndRenderState() {
         try {
-            if (CLIENT_SIDE && slamEngine) {
-                // Client-side mode - get state from engine
-                const state = slamEngine.getState();
-                robot = state.robot;
-                trueMap = state.true_map;
-                discoveredMap = state.discovered_map;
-                
-                if (robot.path_planning) {
-                    goal = robot.path_planning.goal;
-                    plannedPath = robot.path_planning.planned_path || [];
+            if (CLIENT_SIDE) {
+                // Client-side mode - get state from correct engine based on mode
+                if (is3DMode && slamEngine3D) {
+                    // Use 3D engine
+                    updateFromEngine3D();
+                    updateConnectionStatus(true);
+                    render();
+                    console.log("✅ 3D Client-side state initialized");
+                } else if (slamEngine) {
+                    // Use 2D engine
+                    const state = slamEngine.getState();
+                    robot = state.robot;
+                    trueMap = state.true_map;
+                    discoveredMap = state.discovered_map;
+                    
+                    if (robot.path_planning) {
+                        goal = robot.path_planning.goal;
+                        plannedPath = robot.path_planning.planned_path || [];
+                    }
+                    
+                    // Update connection status
+                    updateConnectionStatus(true);
+                    
+                    // Update sensors
+                    sensors = slamEngine.getSensorReadings();
+                    updateSensorDisplay();
+                    
+                    // Update odometry
+                    odometry = robot.odometry;
+                    pathHistory = slamEngine.robot.path_history;
+                    
+                    // Render the updated state
+                    render();
+                    console.log("✅ 2D Client-side state initialized");
                 }
-                
-                // Update connection status
-                updateConnectionStatus(true);
-                
-                // Update sensors
-                sensors = slamEngine.getSensorReadings();
-                updateSensorDisplay();
-                
-                // Update odometry
-                odometry = robot.odometry;
-                pathHistory = slamEngine.robot.path_history;
-                
-                // Render the updated state
-                render();
-                console.log("Client-side state initialized and rendered");
                 return;
             }
             
@@ -916,19 +928,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 const engine = is3DMode ? slamEngine3D : slamEngine;
                 
                 if (is3DMode) {
-                    // 3D movement
+                    // 3D movement - Fixed to return success status
+                    let result = false;
                     if (command === 'move_forward') {
-                        engine.moveForward();
+                        result = engine.moveForward();
                     } else if (command === 'move_backward') {
-                        engine.moveBackward();
+                        result = engine.moveBackward();
                     } else if (command === 'rotate_left') {
-                        engine.rotateLeft();  // Use correct method name
+                        engine.rotateLeft(); // FIX: Was rotateYaw(-90)
+                        result = true;
                     } else if (command === 'rotate_right') {
-                        engine.rotateRight();  // Use correct method name
+                        engine.rotateRight(); // FIX: Was rotateYaw(90)
+                        result = true;
                     }
                     
-                    // Update from 3D engine
-                    updateFromEngine3D();
+                    // Update state only if a move happened
+                    if (result) {
+                        updateFromEngine3D();
+                        render();
+                    }
+                    return;
                 } else {
                     // 2D movement
                     if (command === 'move_forward') {
@@ -1030,22 +1049,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const trueMap3D = state.true_map || [];
         const discoveredMap3D = state.discovered_map || [];
         
-        // Convert trueMap (3D format → 2D format)
+        // CRITICAL FIX: Convert 3D map format to 2D renderer format
+        // 3D format: 0=EMPTY, 1=SOLID, 2=UNKNOWN
+        // 2D format: 0=UNKNOWN, 1=FREE, 2=OBSTACLE
+        
+        // Convert True Map (Show solid walls)
         trueMap = trueMap3D.map(row => 
-            row.map(cell => {
-                if (cell === 0) return 0; // EMPTY → floor (0)
-                if (cell === 1) return 1; // SOLID → wall (1)
-                return 0; // UNKNOWN → floor (treat as floor for true map)
-            })
+            row.map(cell => (cell === 1 ? 1 : 0)) // 3D's SOLID(1) becomes 2D's WALL(1)
         );
         
-        // Convert discoveredMap (3D format → 2D format)
-        discoveredMap = discoveredMap3D.map(row =>
+        // Convert Discovered Map (Show all 3 states)
+        discoveredMap = discoveredMap3D.map(row => 
             row.map(cell => {
-                if (cell === 2) return 0; // UNKNOWN → unknown (0)
-                if (cell === 0) return 1; // EMPTY → free (1)
-                if (cell === 1) return 2; // SOLID → obstacle (2)
-                return 0;
+                if (cell === 2) return 0; // 3D's UNKNOWN(2) becomes 2D's UNKNOWN(0)
+                if (cell === 0) return 1; // 3D's EMPTY(0) becomes 2D's FREE(1)
+                if (cell === 1) return 2; // 3D's SOLID(1) becomes 2D's OBSTACLE(2)
+                return 0; // Default to unknown
             })
         );
         
@@ -1351,22 +1370,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!editMode) {
                     // Reset robot to starting position
                     if (CLIENT_SIDE) {
+                        const engine = is3DMode ? slamEngine3D : slamEngine;
+                        engine.reset();
+                        
+                        // FIX: Clear all path variables
+                        goal = null;
+                        plannedPath = [];
+                        pathHistory = engine.robot.path_history; // <-- THIS LINE IS THE FIX
+                        
+                        console.log(`✅ Robot reset (${is3DMode ? '3D' : '2D'} mode)`);
+                        
+                        // Refresh state from engine
                         if (is3DMode) {
-                            slamEngine3D.reset();
                             updateFromEngine3D();
                         } else {
-                            slamEngine.reset();
-                            const state = slamEngine.getState();
+                            const state = engine.getState();
                             robot = state.robot;
                             trueMap = state.true_map;
                             discoveredMap = state.discovered_map;
-                            sensors = slamEngine.getSensorReadings();
+                            sensors = engine.getSensorReadings();
                             odometry = robot.odometry;
-                            pathHistory = slamEngine.robot.path_history;
                         }
-                        goal = null;
-                        plannedPath = [];
-                        console.log(`✅ Robot reset (${is3DMode ? '3D' : '2D'} mode)`);
+                        
                         console.log('📍 Path history after reset:', pathHistory);
                         render();
                     } else {
@@ -1436,23 +1461,26 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Toggle the cell
         try {
-            if (CLIENT_SIDE && slamEngine) {
-                // Client-side execution
-                slamEngine.toggleCell(gridX, gridY);
-                
-                // Update local state
-                const state = slamEngine.getState();
-                robot = state.robot;
-                trueMap = state.true_map;
-                discoveredMap = state.discovered_map;
-                
-                if (robot.path_planning) {
-                    goal = robot.path_planning.goal;
-                    plannedPath = robot.path_planning.planned_path || [];
+            if (CLIENT_SIDE) {
+                if (is3DMode) {
+                    // 3D EDITING: Pass X, Y, and Z
+                    const success = slamEngine3D.toggleCell(gridX, gridY, currentZLevel);
+                    if (success) {
+                        console.log(`3D Edit: Toggled cell at (${gridX}, ${gridY}, ${currentZLevel})`);
+                        updateFromEngine3D(); // Get new map state
+                        render();
+                    }
+                } else {
+                    // 2D EDITING
+                    slamEngine.toggleCell(gridX, gridY);
+                    const state = slamEngine.getState();
+                    robot = state.robot;
+                    trueMap = state.true_map;
+                    discoveredMap = state.discovered_map;
+                    pathHistory = slamEngine.robot.path_history;
+                    render();
                 }
-                
-                render();
-                console.log(`Client-side: Toggled cell at (${gridX}, ${gridY})`);
+            } else {                console.log(`Client-side: Toggled cell at (${gridX}, ${gridY})`);
                 return;
             }
             
@@ -2077,16 +2105,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (label2) label2.textContent = `${GRID_SIZE}x${GRID_SIZE}x${maxZ} Grid`;
                 
                 // Initialize z-level slider
-                if (zLevelInput) {
+                if (zLevelInput && zLevelDisplay) {
                     zLevelInput.max = maxZ - 1;
                     zLevelInput.value = currentZLevel;
+                    zLevelDisplay.textContent = currentZLevel.toString();
                 }
                 
                 // Update from 3D engine
                 slamEngine3D.setViewLevel(currentZLevel);
                 updateFromEngine3D();
                 
-                console.log('🎮 Switched to 3D Mode');
+                console.log('🎮 Switched to 3D Mode at Z-level:', currentZLevel);
             } else {
                 console.log('→ Switching to 2D Mode');
                 toggle3DBtn.textContent = 'Switch to 3D Mode';

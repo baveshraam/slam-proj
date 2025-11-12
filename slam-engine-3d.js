@@ -7,6 +7,7 @@ class SLAM3DEngine {
         this.MAP_WIDTH = mapWidth;   // X-axis (left-right)
         this.MAP_DEPTH = mapDepth;   // Y-axis (forward-backward)
         this.MAP_HEIGHT = mapHeight; // Z-axis (up-down, altitude)
+        this.MAX_Z = mapHeight;      // Alias for UI compatibility
         this.SENSOR_RANGE = sensorRange;
         
         // Voxel states
