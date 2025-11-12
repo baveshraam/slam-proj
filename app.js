@@ -1021,12 +1021,37 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('🤖 Robot:', robot);
         console.log('📍 Current Z-Level:', state.current_level);
         
-        // The 3D engine already gives us the current level slice
-        trueMap = state.true_map || [];
-        discoveredMap = state.discovered_map || [];
+        // The 3D engine gives us the current level slice
+        // BUT: 3D engine uses different values than 2D!
+        // 3D: 0=EMPTY, 1=SOLID, 2=UNKNOWN
+        // 2D: 0=UNKNOWN, 1=FREE, 2=OBSTACLE
+        // We need to convert!
+        
+        const trueMap3D = state.true_map || [];
+        const discoveredMap3D = state.discovered_map || [];
+        
+        // Convert trueMap (3D format → 2D format)
+        trueMap = trueMap3D.map(row => 
+            row.map(cell => {
+                if (cell === 0) return 0; // EMPTY → floor (0)
+                if (cell === 1) return 1; // SOLID → wall (1)
+                return 0; // UNKNOWN → floor (treat as floor for true map)
+            })
+        );
+        
+        // Convert discoveredMap (3D format → 2D format)
+        discoveredMap = discoveredMap3D.map(row =>
+            row.map(cell => {
+                if (cell === 2) return 0; // UNKNOWN → unknown (0)
+                if (cell === 0) return 1; // EMPTY → free (1)
+                if (cell === 1) return 2; // SOLID → obstacle (2)
+                return 0;
+            })
+        );
         
         console.log('🗺️ TrueMap slice size:', trueMap.length, 'x', trueMap[0]?.length);
         console.log('🗺️ DiscoveredMap slice size:', discoveredMap.length, 'x', discoveredMap[0]?.length);
+        console.log('🔍 Sample discovered cells:', discoveredMap[2]?.slice(0, 10));
         
         // Update sensors
         sensors = slamEngine3D.getSensorReadings3D();
