@@ -104,6 +104,9 @@ class SLAM3DEngine {
         // Mark starting position as discovered
         this.markVoxelDiscovered(this.robot.x, this.robot.y, this.robot.z, this.EMPTY);
         
+        // Run initial sensor scan to discover surroundings
+        this.updateDiscoveredMap();
+        
         // Current viewing level (for UI, which Z-level to display)
         this.currentViewLevel = 1;
     }

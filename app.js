@@ -922,9 +922,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (command === 'move_backward') {
                         engine.moveBackward();
                     } else if (command === 'rotate_left') {
-                        engine.rotateYaw(15);  // 15 degrees left
+                        engine.rotateLeft();  // Use correct method name
                     } else if (command === 'rotate_right') {
-                        engine.rotateYaw(-15);  // 15 degrees right
+                        engine.rotateRight();  // Use correct method name
                     }
                     
                     // Update from 3D engine
@@ -1053,8 +1053,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('🗺️ DiscoveredMap slice size:', discoveredMap.length, 'x', discoveredMap[0]?.length);
         console.log('🔍 Sample discovered cells:', discoveredMap[2]?.slice(0, 10));
         
-        // Update sensors
-        sensors = slamEngine3D.getSensorReadings3D();
+        // Update sensors (correct method name!)
+        sensors = slamEngine3D.getSensorReadings();
         updateSensorDisplay();
         
         // Update odometry
