@@ -14,7 +14,7 @@ class SLAMEngine {
             front_right: { enabled: true, range: Infinity },
             right: { enabled: true, range: Infinity },
             back_right: { enabled: true, range: Infinity },
-            back: { enabled: true, range: Infinity },
+             back: { enabled: true, range: Infinity },
             back_left: { enabled: true, range: Infinity },
             left: { enabled: true, range: Infinity },
             front_left: { enabled: true, range: Infinity }
@@ -29,7 +29,7 @@ class SLAMEngine {
         this.WEST = 180;
         this.SOUTH = 270;
         
-        this.DIRECTIONS = {
+        this.DIRECTIONS = { 
             0: "East",
             90: "North",
             180: "West",

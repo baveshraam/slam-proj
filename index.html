@@ -23,6 +23,9 @@
             </div>
             <h1>Smart Wheelchair SLAM</h1>
             <div class="status-indicator">
+                <button id="btn-toggle-3d" class="toggle-3d-btn" style="margin-right: 20px; padding: 8px 16px; background: #4a90e2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    Switch to 3D Mode
+                </button>
                 <span class="status-dot"></span>
                 <span id="connection-status">Connecting...</span>
             </div>
@@ -61,6 +64,10 @@
                             <span class="label">Y:</span>
                             <span class="value" id="robot-y">-</span>
                         </div>
+                        <div class="info-row" id="robot-z-row" style="display: none;">
+                            <span class="label">Z (Alt):</span>
+                            <span class="value" id="robot-z">-</span>
+                        </div>
                         <div class="info-row">
                             <span class="label">Angle:</span>
                             <span class="value" id="robot-angle">-</span>
@@ -68,6 +75,14 @@
                         <div class="info-row">
                             <span class="label">Direction:</span>
                             <span class="value" id="robot-direction">-</span>
+                        </div>
+                        <div class="info-row" id="robot-pitch-row" style="display: none;">
+                            <span class="label">Pitch:</span>
+                            <span class="value" id="robot-pitch">-</span>
+                        </div>
+                        <div class="info-row" id="robot-roll-row" style="display: none;">
+                            <span class="label">Roll:</span>
+                            <span class="value" id="robot-roll">-</span>
                         </div>
                     </div>
                 </div>
@@ -120,12 +135,28 @@
                             <kbd>S</kbd> <kbd>↓</kbd>
                             <span>Move Backward</span>
                         </div>
+                        <div class="control-item" id="control-up" style="display: none;">
+                            <kbd>Space</kbd>
+                            <span>Move Up</span>
+                        </div>
+                        <div class="control-item" id="control-down" style="display: none;">
+                            <kbd>Ctrl</kbd>
+                            <span>Move Down</span>
+                        </div>
+                        <div class="control-item" id="control-pitch-up" style="display: none;">
+                            <kbd>Q</kbd>
+                            <span>Pitch Up</span>
+                        </div>
+                        <div class="control-item" id="control-pitch-down" style="display: none;">
+                            <kbd>E</kbd>
+                            <span>Pitch Down</span>
+                        </div>
                         <div class="control-item">
                             <kbd>R</kbd>
                             <span>Reset Position</span>
                         </div>
-                        <div class="control-item">
-                            <kbd>E</kbd>
+                        <div class="control-item" id="control-edit-toggle">
+                            <kbd>M</kbd>
                             <span>Toggle Edit Mode</span>
                         </div>
                     </div>
@@ -158,6 +189,21 @@
                 <div class="info-card">
                     <h3>⚙️ Simulation Settings</h3>
                     <div class="editor-controls">
+                        <div class="settings-group" id="z-level-control" style="display: none;">
+                            <label for="z-level-input" class="settings-label">
+                                <span>🏔️ Z-Level (Altitude):</span>
+                                <span id="z-level-display" class="value">0</span>
+                            </label>
+                            <input type="range" id="z-level-input" min="0" max="19" value="0" step="1" class="range-slider">
+                            <div class="range-labels">
+                                <span>Ground (0)</span>
+                                <span>Top (19)</span>
+                            </div>
+                            <small style="color: #888; font-size: 0.85em; margin-top: 4px; display: block;">
+                                View different altitude levels of the 3D map
+                            </small>
+                        </div>
+                        
                         <div class="settings-group">
                             <label for="map-size-input" class="settings-label">
                                 <span>Grid Size:</span>
@@ -354,6 +400,7 @@
     
     <script src="config.js"></script>
     <script src="slam-engine.js"></script>
+    <script src="slam-engine-3d.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

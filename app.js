@@ -2,11 +2,17 @@
 const CLIENT_SIDE = window.CLIENT_SIDE_MODE || false;
 const API_BASE_URL = window.BACKEND_URL || 'http://127.0.0.1:5000';
 
-// Initialize SLAM Engine if client-side mode
+// Initialize SLAM Engines if client-side mode
 let slamEngine = null;
+let slamEngine3D = null;
+let is3DMode = false;  // Toggle between 2D and 3D
+let currentZLevel = 0;  // Current z-level being viewed in 3D mode
+
 if (CLIENT_SIDE) {
     slamEngine = new SLAMEngine();
+    slamEngine3D = new SLAM3DEngine();
     console.log('🚀 Client-side mode: All logic running in browser!');
+    console.log('📦 2D & 3D SLAM engines initialized');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -529,6 +535,17 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('robot-angle').textContent = robot.angle + '°';
         document.getElementById('robot-direction').textContent = DIRECTIONS[robot.angle] || 'Unknown';
         
+        // Update 3D-specific UI
+        if (is3DMode && robot.z !== undefined) {
+            const robotZEl = document.getElementById('robot-z');
+            const robotPitchEl = document.getElementById('robot-pitch');
+            const robotRollEl = document.getElementById('robot-roll');
+            
+            if (robotZEl) robotZEl.textContent = robot.z.toFixed(1);
+            if (robotPitchEl) robotPitchEl.textContent = robot.pitch?.toFixed(1) + '°' || '0.0°';
+            if (robotRollEl) robotRollEl.textContent = robot.roll?.toFixed(1) + '°' || '0.0°';
+        }
+        
         // Update odometry display
         document.getElementById('move-count').textContent = odometry.move_count;
         document.getElementById('rotation-count').textContent = odometry.rotation_count;
@@ -697,6 +714,23 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Clear canvases
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // If in 3D mode and using 3D engine, get the current z-level slice
+        if (is3DMode && CLIENT_SIDE && slamEngine3D) {
+            const state = slamEngine3D.getState3D();
+            trueMap = state.true_map[currentZLevel] || [];
+            discoveredMap = state.discovered_map[currentZLevel] || [];
+            
+            // Update robot position for current z-level
+            robot = {
+                x: state.robot.position[0],
+                y: state.robot.position[1],
+                z: state.robot.position[2],
+                angle: state.robot.orientation[2],  // yaw
+                pitch: state.robot.orientation[1],
+                roll: state.robot.orientation[0]
+            };
+        }
         
         // Draw true map (left canvas)
         drawGrid();
@@ -873,36 +907,55 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function sendMoveCommand(command) {
         try {
-            if (CLIENT_SIDE && slamEngine) {
-                // Client-side execution
-                if (command === 'move_forward') {
-                    slamEngine.moveForward();
-                } else if (command === 'move_backward') {
-                    slamEngine.moveBackward();
-                } else if (command === 'rotate_left') {
-                    slamEngine.rotateLeft();
-                } else if (command === 'rotate_right') {
-                    slamEngine.rotateRight();
+            if (CLIENT_SIDE) {
+                // Choose the right engine based on mode
+                const engine = is3DMode ? slamEngine3D : slamEngine;
+                
+                if (is3DMode) {
+                    // 3D movement
+                    if (command === 'move_forward') {
+                        engine.moveForward();
+                    } else if (command === 'move_backward') {
+                        engine.moveBackward();
+                    } else if (command === 'rotate_left') {
+                        engine.rotateYaw(15);  // 15 degrees left
+                    } else if (command === 'rotate_right') {
+                        engine.rotateYaw(-15);  // 15 degrees right
+                    }
+                    
+                    // Update from 3D engine
+                    updateFromEngine3D();
+                } else {
+                    // 2D movement
+                    if (command === 'move_forward') {
+                        engine.moveForward();
+                    } else if (command === 'move_backward') {
+                        engine.moveBackward();
+                    } else if (command === 'rotate_left') {
+                        engine.rotateLeft();
+                    } else if (command === 'rotate_right') {
+                        engine.rotateRight();
+                    }
+                    
+                    // Update local state from 2D engine
+                    const state = engine.getState();
+                    robot = state.robot;
+                    trueMap = state.true_map;
+                    discoveredMap = state.discovered_map;
+                    
+                    if (robot.path_planning) {
+                        goal = robot.path_planning.goal;
+                        plannedPath = robot.path_planning.planned_path || [];
+                    }
+                    
+                    // Update sensors
+                    sensors = engine.getSensorReadings();
+                    updateSensorDisplay();
+                    
+                    // Update odometry
+                    odometry = robot.odometry;
+                    pathHistory = engine.robot.path_history;
                 }
-                
-                // Update local state
-                const state = slamEngine.getState();
-                robot = state.robot;
-                trueMap = state.true_map;
-                discoveredMap = state.discovered_map;
-                
-                if (robot.path_planning) {
-                    goal = robot.path_planning.goal;
-                    plannedPath = robot.path_planning.planned_path || [];
-                }
-                
-                // Update sensors
-                sensors = slamEngine.getSensorReadings();
-                updateSensorDisplay();
-                
-                // Update odometry
-                odometry = robot.odometry;
-                pathHistory = slamEngine.robot.path_history;
                 
                 render();
                 return;
@@ -937,6 +990,36 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error sending move command:', error);
         }
+    }
+    
+    /**
+     * Update state from 3D engine
+     */
+    function updateFromEngine3D() {
+        if (!slamEngine3D) return;
+        
+        const state = slamEngine3D.getState3D();
+        
+        // Map 3D position to 2D for display
+        robot = {
+            x: state.robot.position[0],
+            y: state.robot.position[1],
+            z: state.robot.position[2],
+            angle: state.robot.orientation[2],  // yaw
+            pitch: state.robot.orientation[1],
+            roll: state.robot.orientation[0]
+        };
+        
+        // Get the z-level slice for display
+        trueMap = state.true_map[currentZLevel] || [];
+        discoveredMap = state.discovered_map[currentZLevel] || [];
+        
+        // Update sensors
+        sensors = slamEngine3D.getSensorReadings3D();
+        updateSensorDisplay();
+        
+        // Path history (project to current z-level)
+        pathHistory = (state.robot.path_history || []).filter(p => p[2] === currentZLevel);
     }
 
     /**
@@ -1180,21 +1263,68 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'ArrowDown':
                 if (!editMode) sendMoveCommand('move_backward');
                 break;
+            case ' ':  // Space bar for UP in 3D mode
+                if (!editMode && is3DMode && CLIENT_SIDE) {
+                    event.preventDefault();
+                    const result = slamEngine3D.moveUp();
+                    if (result) {
+                        updateFromEngine3D();
+                        render();
+                    }
+                }
+                break;
+            case 'Control':  // Ctrl for DOWN in 3D mode
+                if (!editMode && is3DMode && CLIENT_SIDE) {
+                    event.preventDefault();
+                    const result = slamEngine3D.moveDown();
+                    if (result) {
+                        updateFromEngine3D();
+                        render();
+                    }
+                }
+                break;
+            case 'q':
+            case 'Q':  // Pitch up in 3D mode
+                if (!editMode && is3DMode && CLIENT_SIDE) {
+                    slamEngine3D.adjustPitch(15);  // +15 degrees
+                    updateFromEngine3D();
+                    render();
+                }
+                break;
+            case 'e':
+            case 'E':  // Pitch down in 3D mode OR toggle edit in 2D mode
+                if (!editMode && is3DMode && CLIENT_SIDE) {
+                    slamEngine3D.adjustPitch(-15);  // -15 degrees
+                    updateFromEngine3D();
+                    render();
+                } else if (!is3DMode) {
+                    // Toggle edit mode in 2D
+                    toggleEditMode();
+                }
+                break;
+            case 'm':
+            case 'M':  // Toggle edit mode (works in both 2D and 3D)
+                toggleEditMode();
+                break;
             case 'r':
             case 'R':
                 if (!editMode) {
                     // Reset robot to starting position
-                    if (CLIENT_SIDE && slamEngine) {
-                        // Client-side reset
-                        slamEngine.reset();
-                        const state = slamEngine.getState();
-                        robot = state.robot;
-                        trueMap = state.true_map;
-                        discoveredMap = state.discovered_map;
+                    if (CLIENT_SIDE) {
+                        if (is3DMode) {
+                            slamEngine3D.reset();
+                            updateFromEngine3D();
+                        } else {
+                            slamEngine.reset();
+                            const state = slamEngine.getState();
+                            robot = state.robot;
+                            trueMap = state.true_map;
+                            discoveredMap = state.discovered_map;
+                        }
                         goal = null;
                         plannedPath = [];
                         render();
-                        console.log('Client-side: Robot reset to starting position');
+                        console.log(`Client-side: Robot reset to starting position (${is3DMode ? '3D' : '2D'} mode)`);
                     } else {
                         // Server-side reset
                         fetch(`${API_BASE_URL}/api/reset`, { method: 'POST' })
@@ -1202,11 +1332,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             .catch(err => console.error('Reset failed:', err));
                     }
                 }
-                break;
-            case 'e':
-            case 'E':
-                // Toggle edit mode
-                toggleEditMode();
                 break;
         }
     });
@@ -1855,5 +1980,91 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             visionModeDisplay.textContent = modeNames[currentMode] || currentMode;
         }
+    }
+    
+    // ==========================================
+    // 3D MODE TOGGLE & Z-LEVEL CONTROLS
+    // ==========================================
+    
+    const toggle3DBtn = document.getElementById('btn-toggle-3d');
+    const zLevelControl = document.getElementById('z-level-control');
+    const zLevelInput = document.getElementById('z-level-input');
+    const zLevelDisplay = document.getElementById('z-level-display');
+    
+    // 3D UI elements
+    const robotZRow = document.getElementById('robot-z-row');
+    const robotPitchRow = document.getElementById('robot-pitch-row');
+    const robotRollRow = document.getElementById('robot-roll-row');
+    const controlUp = document.getElementById('control-up');
+    const controlDown = document.getElementById('control-down');
+    const controlPitchUp = document.getElementById('control-pitch-up');
+    const controlPitchDown = document.getElementById('control-pitch-down');
+    
+    if (toggle3DBtn && CLIENT_SIDE) {
+        toggle3DBtn.addEventListener('click', () => {
+            is3DMode = !is3DMode;
+            
+            if (is3DMode) {
+                toggle3DBtn.textContent = 'Switch to 2D Mode';
+                toggle3DBtn.style.background = '#52b788';
+                
+                // Show 3D controls
+                if (zLevelControl) zLevelControl.style.display = 'block';
+                if (robotZRow) robotZRow.style.display = 'flex';
+                if (robotPitchRow) robotPitchRow.style.display = 'flex';
+                if (robotRollRow) robotRollRow.style.display = 'flex';
+                if (controlUp) controlUp.style.display = 'flex';
+                if (controlDown) controlDown.style.display = 'flex';
+                if (controlPitchUp) controlPitchUp.style.display = 'flex';
+                if (controlPitchDown) controlPitchDown.style.display = 'flex';
+                
+                // Update grid size label
+                const maxZ = slamEngine3D.MAX_Z || 20;
+                const label1 = document.getElementById('grid-size-label-1');
+                const label2 = document.getElementById('grid-size-label-2');
+                if (label1) label1.textContent = `${GRID_SIZE}x${GRID_SIZE}x${maxZ} Grid`;
+                if (label2) label2.textContent = `${GRID_SIZE}x${GRID_SIZE}x${maxZ} Grid`;
+                
+                // Initialize z-level slider
+                if (zLevelInput) {
+                    zLevelInput.max = maxZ - 1;
+                    zLevelInput.value = currentZLevel;
+                }
+                
+                console.log('🎮 Switched to 3D Mode');
+            } else {
+                toggle3DBtn.textContent = 'Switch to 3D Mode';
+                toggle3DBtn.style.background = '#4a90e2';
+                
+                // Hide 3D controls
+                if (zLevelControl) zLevelControl.style.display = 'none';
+                if (robotZRow) robotZRow.style.display = 'none';
+                if (robotPitchRow) robotPitchRow.style.display = 'none';
+                if (robotRollRow) robotRollRow.style.display = 'none';
+                if (controlUp) controlUp.style.display = 'none';
+                if (controlDown) controlDown.style.display = 'none';
+                if (controlPitchUp) controlPitchUp.style.display = 'none';
+                if (controlPitchDown) controlPitchDown.style.display = 'none';
+                
+                // Restore 2D grid label
+                const label1 = document.getElementById('grid-size-label-1');
+                const label2 = document.getElementById('grid-size-label-2');
+                if (label1) label1.textContent = `${GRID_SIZE}x${GRID_SIZE} Grid`;
+                if (label2) label2.textContent = `${GRID_SIZE}x${GRID_SIZE} Grid`;
+                
+                console.log('🎮 Switched to 2D Mode');
+            }
+            
+            render();
+        });
+    }
+    
+    // Z-level slider
+    if (zLevelInput && zLevelDisplay) {
+        zLevelInput.addEventListener('input', (e) => {
+            currentZLevel = parseInt(e.target.value);
+            zLevelDisplay.textContent = currentZLevel.toString();
+            render();
+        });
     }
 });
