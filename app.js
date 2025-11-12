@@ -9,10 +9,22 @@ let is3DMode = false;  // Toggle between 2D and 3D
 let currentZLevel = 0;  // Current z-level being viewed in 3D mode
 
 if (CLIENT_SIDE) {
-    slamEngine = new SLAMEngine();
-    slamEngine3D = new SLAM3DEngine();
+    try {
+        slamEngine = new SLAMEngine();
+        console.log('✅ 2D SLAM engine initialized');
+    } catch (err) {
+        console.error('❌ Failed to initialize 2D engine:', err);
+    }
+    
+    try {
+        slamEngine3D = new SLAM3DEngine();
+        console.log('✅ 3D SLAM engine initialized');
+    } catch (err) {
+        console.error('❌ Failed to initialize 3D engine:', err);
+    }
+    
     console.log('🚀 Client-side mode: All logic running in browser!');
-    console.log('📦 2D & 3D SLAM engines initialized');
+    console.log('📦 Engines ready:', { has2D: !!slamEngine, has3D: !!slamEngine3D });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -2000,11 +2012,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const controlPitchUp = document.getElementById('control-pitch-up');
     const controlPitchDown = document.getElementById('control-pitch-down');
     
+    console.log('🔍 Debug - Toggle button found:', !!toggle3DBtn);
+    console.log('🔍 Debug - CLIENT_SIDE:', CLIENT_SIDE);
+    console.log('🔍 Debug - slamEngine3D exists:', !!slamEngine3D);
+    
     if (toggle3DBtn && CLIENT_SIDE) {
+        console.log('✅ Attaching 3D toggle button event listener');
         toggle3DBtn.addEventListener('click', () => {
+            console.log('🎮 3D Toggle clicked! Current mode:', is3DMode ? '3D' : '2D');
             is3DMode = !is3DMode;
             
             if (is3DMode) {
+                console.log('→ Switching to 3D Mode');
                 toggle3DBtn.textContent = 'Switch to 2D Mode';
                 toggle3DBtn.style.background = '#52b788';
                 
@@ -2033,6 +2052,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 console.log('🎮 Switched to 3D Mode');
             } else {
+                console.log('→ Switching to 2D Mode');
                 toggle3DBtn.textContent = 'Switch to 3D Mode';
                 toggle3DBtn.style.background = '#4a90e2';
                 
@@ -2056,6 +2076,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             render();
+        });
+    } else {
+        console.warn('⚠️ 3D toggle button NOT attached:', { 
+            hasButton: !!toggle3DBtn, 
+            clientSide: CLIENT_SIDE,
+            reason: !toggle3DBtn ? 'Button not found' : 'Not in client-side mode'
         });
     }
     
