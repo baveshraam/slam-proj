@@ -25,6 +25,14 @@ if (CLIENT_SIDE) {
     
     console.log('🚀 Client-side mode: All logic running in browser!');
     console.log('📦 Engines ready:', { has2D: !!slamEngine, has3D: !!slamEngine3D });
+    
+    // Debug 3D Engine Status
+    console.log('🎮 3D Engine Status:', {
+        has3D: !!slamEngine3D,
+        mapSize: slamEngine3D ? `${slamEngine3D.MAP_WIDTH}x${slamEngine3D.MAP_DEPTH}x${slamEngine3D.MAP_HEIGHT}` : 'N/A',
+        robotPos: slamEngine3D ? `(${slamEngine3D.robot.x}, ${slamEngine3D.robot.y}, ${slamEngine3D.robot.z})` : 'N/A',
+        robotOrientation: slamEngine3D ? `yaw:${slamEngine3D.robot.yaw}° pitch:${slamEngine3D.robot.pitch}° roll:${slamEngine3D.robot.roll}°` : 'N/A'
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1025,7 +1033,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         const state = slamEngine3D.getState();
-        console.log('🔍 3D Engine State:', state);
         
         // Map 3D state to robot object (use correct property names)
         robot = {
@@ -1037,15 +1044,6 @@ document.addEventListener('DOMContentLoaded', () => {
             roll: state.robot.roll
         };
         
-        console.log('🤖 Robot:', robot);
-        console.log('📍 Current Z-Level:', state.current_level);
-        
-        // The 3D engine gives us the current level slice
-        // BUT: 3D engine uses different values than 2D!
-        // 3D: 0=EMPTY, 1=SOLID, 2=UNKNOWN
-        // 2D: 0=UNKNOWN, 1=FREE, 2=OBSTACLE
-        // We need to convert!
-        
         const trueMap3D = state.true_map || [];
         const discoveredMap3D = state.discovered_map || [];
         
@@ -1055,22 +1053,27 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Convert True Map (Show solid walls)
         trueMap = trueMap3D.map(row => 
-            row.map(cell => (cell === 1 ? 1 : 0)) // 3D's SOLID(1) becomes 2D's WALL(1)
+            row.map(cell => (cell === 1 ? 1 : 0)) // 3D's SOLID(1) becomes 2D's WALL(1), everything else FLOOR(0)
         );
         
         // Convert Discovered Map (Show all 3 states)
         discoveredMap = discoveredMap3D.map(row => 
             row.map(cell => {
-                if (cell === 2) return 0; // 3D's UNKNOWN(2) becomes 2D's UNKNOWN(0)
-                if (cell === 0) return 1; // 3D's EMPTY(0) becomes 2D's FREE(1)
-                if (cell === 1) return 2; // 3D's SOLID(1) becomes 2D's OBSTACLE(2)
+                if (cell === 2) return 0; // 3D's UNKNOWN(2) becomes 2D's UNKNOWN(0) - black
+                if (cell === 0) return 1; // 3D's EMPTY(0) becomes 2D's FREE(1) - grey
+                if (cell === 1) return 2; // 3D's SOLID(1) becomes 2D's OBSTACLE(2) - red
                 return 0; // Default to unknown
             })
         );
         
-        console.log('🗺️ TrueMap slice size:', trueMap.length, 'x', trueMap[0]?.length);
-        console.log('🗺️ DiscoveredMap slice size:', discoveredMap.length, 'x', discoveredMap[0]?.length);
-        console.log('🔍 Sample discovered cells:', discoveredMap[2]?.slice(0, 10));
+        console.log('� 3D Map Conversion:', {
+            zLevel: state.current_level,
+            robot: `(${robot.x}, ${robot.y}, ${robot.z})`,
+            orientation: `yaw:${robot.angle}° pitch:${robot.pitch}° roll:${robot.roll}°`,
+            mapSlices: `${trueMap.length}x${trueMap[0]?.length}`,
+            sampleTrueMap: trueMap[2]?.slice(0, 5),
+            sampleDiscovered: discoveredMap[2]?.slice(0, 5)
+        });
         
         // Update sensors (correct method name!)
         sensors = slamEngine3D.getSensorReadings();
@@ -1323,37 +1326,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!editMode) sendMoveCommand('move_backward');
                 break;
             case ' ':  // Space bar for UP in 3D mode
-                if (!editMode && is3DMode && CLIENT_SIDE) {
+                if (!editMode && is3DMode && CLIENT_SIDE && slamEngine3D) {
                     event.preventDefault();
                     const result = slamEngine3D.moveUp();
                     if (result) {
+                        console.log('🚁 Moved UP to Z=' + slamEngine3D.robot.z);
                         updateFromEngine3D();
                         render();
+                    } else {
+                        console.log('❌ Cannot move up - blocked or ceiling');
                     }
                 }
                 break;
-            case 'Control':  // Ctrl for DOWN in 3D mode
-                if (!editMode && is3DMode && CLIENT_SIDE) {
+            case 'Control':  // Ctrl for DOWN in 3D mode  
+                if (!editMode && is3DMode && CLIENT_SIDE && slamEngine3D) {
                     event.preventDefault();
                     const result = slamEngine3D.moveDown();
                     if (result) {
+                        console.log('⬇️ Moved DOWN to Z=' + slamEngine3D.robot.z);
                         updateFromEngine3D();
                         render();
+                    } else {
+                        console.log('❌ Cannot move down - ground level or no support');
                     }
                 }
                 break;
             case 'q':
             case 'Q':  // Pitch up in 3D mode
-                if (!editMode && is3DMode && CLIENT_SIDE) {
+                if (!editMode && is3DMode && CLIENT_SIDE && slamEngine3D) {
                     slamEngine3D.adjustPitch(15);  // +15 degrees
+                    console.log('⬆️ Pitch adjusted to ' + slamEngine3D.robot.pitch + '°');
                     updateFromEngine3D();
                     render();
                 }
                 break;
             case 'e':
             case 'E':  // Pitch down in 3D mode OR toggle edit in 2D mode
-                if (!editMode && is3DMode && CLIENT_SIDE) {
+                if (!editMode && is3DMode && CLIENT_SIDE && slamEngine3D) {
                     slamEngine3D.adjustPitch(-15);  // -15 degrees
+                    console.log('⬇️ Pitch adjusted to ' + slamEngine3D.robot.pitch + '°');
                     updateFromEngine3D();
                     render();
                 } else if (!is3DMode) {

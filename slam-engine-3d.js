@@ -339,9 +339,13 @@ class SLAM3DEngine {
         // Cell must not be solid
         if (this.trueMap[z][y][x] === this.SOLID) return false;
         
-        // Must have ground beneath (robot can't float)
-        if (z > 0 && this.trueMap[z - 1][y][x] === this.EMPTY) {
-            return false; // No ground support
+        // For Z > 0, check if there's solid ground beneath (gravity)
+        // Allow standing on stairs or platforms
+        if (z > 0) {
+            const groundBelow = this.trueMap[z - 1][y][x];
+            if (groundBelow !== this.SOLID) {
+                return false; // No solid ground support
+            }
         }
         
         return true;
@@ -598,25 +602,42 @@ class SLAM3DEngine {
     /**
      * Move robot up (climb stairs, increase altitude)
      */
+    /**
+     * Move robot up (ascend stairs, increase altitude)
+     */
     moveUp() {
         const newZ = this.robot.z + 1;
         
-        // Can only move up if there's space above and robot stays on solid ground
-        if (newZ < this.MAP_HEIGHT &&
-            this.trueMap[newZ][this.robot.y][this.robot.x] === this.EMPTY &&
-            this.hasGround(this.robot.x, this.robot.y, newZ)) {
-            
-            this.robot.z = newZ;
-            this.robot.path_history.push([this.robot.x, this.robot.y, this.robot.z]);
-            this.robot.move_count += 1;
-            this.robot.vertical_move_count += 1;
-            this.robot.distance_traveled += 1.0;
-            this.robot.altitude_max_reached = Math.max(this.robot.altitude_max_reached, newZ);
-            this.updateOdometry();
-            this.updateDiscoveredMap();
-            return true;
+        // Check if move is valid
+        if (newZ >= this.MAP_HEIGHT) {
+            console.log('❌ moveUp: Hit ceiling at Z=' + this.robot.z);
+            return false;
         }
-        return false;
+        
+        // Check if new position is empty
+        if (this.trueMap[newZ][this.robot.y][this.robot.x] !== this.EMPTY) {
+            console.log('❌ moveUp: Blocked by solid at Z=' + newZ);
+            return false;
+        }
+        
+        // Check if there's solid ground to stand on at new level
+        if (!this.hasGround(this.robot.x, this.robot.y, newZ)) {
+            console.log('❌ moveUp: No ground support at Z=' + newZ);
+            return false;
+        }
+        
+        // Move is valid, update position
+        this.robot.z = newZ;
+        this.robot.path_history.push([this.robot.x, this.robot.y, this.robot.z]);
+        this.robot.move_count += 1;
+        this.robot.vertical_move_count += 1;
+        this.robot.distance_traveled += 1.0;
+        this.robot.altitude_max_reached = Math.max(this.robot.altitude_max_reached, newZ);
+        this.updateOdometry();
+        this.updateDiscoveredMap();
+        
+        console.log('✅ moveUp: Success! Now at Z=' + newZ);
+        return true;
     }
     
     /**
@@ -625,18 +646,37 @@ class SLAM3DEngine {
     moveDown() {
         const newZ = this.robot.z - 1;
         
-        // Can only move down if new position is valid
-        if (newZ > 0 && this.isValidPosition(this.robot.x, this.robot.y, newZ)) {
-            this.robot.z = newZ;
-            this.robot.path_history.push([this.robot.x, this.robot.y, this.robot.z]);
-            this.robot.move_count += 1;
-            this.robot.vertical_move_count += 1;
-            this.robot.distance_traveled += 1.0;
-            this.updateOdometry();
-            this.updateDiscoveredMap();
-            return true;
+        // Can't go below ground level
+        if (newZ < 0) {
+            console.log('❌ moveDown: Already at ground level (Z=0)');
+            return false;
         }
-        return false;
+        
+        // Special case for Z=0: just check if not solid
+        if (newZ === 0) {
+            if (this.trueMap[0][this.robot.y][this.robot.x] === this.SOLID) {
+                console.log('❌ moveDown: Cannot move to solid ground at Z=0');
+                return false;
+            }
+        } else {
+            // For Z > 0, check full position validity
+            if (!this.isValidPosition(this.robot.x, this.robot.y, newZ)) {
+                console.log('❌ moveDown: Invalid position at Z=' + newZ);
+                return false;
+            }
+        }
+        
+        // Move is valid
+        this.robot.z = newZ;
+        this.robot.path_history.push([this.robot.x, this.robot.y, this.robot.z]);
+        this.robot.move_count += 1;
+        this.robot.vertical_move_count += 1;
+        this.robot.distance_traveled += 1.0;
+        this.updateOdometry();
+        this.updateDiscoveredMap();
+        
+        console.log('✅ moveDown: Success! Now at Z=' + newZ);
+        return true;
     }
     
     /**
