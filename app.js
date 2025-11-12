@@ -1008,30 +1008,41 @@ document.addEventListener('DOMContentLoaded', () => {
      * Update state from 3D engine
      */
     function updateFromEngine3D() {
-        if (!slamEngine3D) return;
+        if (!slamEngine3D) {
+            console.error('❌ slamEngine3D is null!');
+            return;
+        }
         
-        const state = slamEngine3D.getState3D();
+        const state = slamEngine3D.getState();
+        console.log('🔍 3D Engine State:', state);
         
-        // Map 3D position to 2D for display
+        // Map 3D state to robot object (use correct property names)
         robot = {
-            x: state.robot.position[0],
-            y: state.robot.position[1],
-            z: state.robot.position[2],
-            angle: state.robot.orientation[2],  // yaw
-            pitch: state.robot.orientation[1],
-            roll: state.robot.orientation[0]
+            x: state.robot.x,
+            y: state.robot.y,
+            z: state.robot.z,
+            angle: state.robot.yaw,  // yaw for compatibility
+            pitch: state.robot.pitch,
+            roll: state.robot.roll
         };
         
-        // Get the z-level slice for display
-        trueMap = state.true_map[currentZLevel] || [];
-        discoveredMap = state.discovered_map[currentZLevel] || [];
+        console.log('🤖 Robot:', robot);
+        console.log('📍 Current Z-Level:', state.current_level);
+        
+        // The 3D engine already gives us the current level slice
+        trueMap = state.true_map || [];
+        discoveredMap = state.discovered_map || [];
+        
+        console.log('🗺️ TrueMap slice size:', trueMap.length, 'x', trueMap[0]?.length);
+        console.log('🗺️ DiscoveredMap slice size:', discoveredMap.length, 'x', discoveredMap[0]?.length);
         
         // Update sensors
         sensors = slamEngine3D.getSensorReadings3D();
         updateSensorDisplay();
         
-        // Path history (project to current z-level)
-        pathHistory = (state.robot.path_history || []).filter(p => p[2] === currentZLevel);
+        // Update odometry
+        odometry = state.robot.odometry || { move_count: 0, rotation_count: 0, distance_traveled: 0, path_length: 1 };
+        pathHistory = state.robot.path_history || [];
     }
 
     /**
@@ -2050,6 +2061,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     zLevelInput.value = currentZLevel;
                 }
                 
+                // Update from 3D engine
+                slamEngine3D.setViewLevel(currentZLevel);
+                updateFromEngine3D();
+                
                 console.log('🎮 Switched to 3D Mode');
             } else {
                 console.log('→ Switching to 2D Mode');
@@ -2072,6 +2087,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (label1) label1.textContent = `${GRID_SIZE}x${GRID_SIZE} Grid`;
                 if (label2) label2.textContent = `${GRID_SIZE}x${GRID_SIZE} Grid`;
                 
+                // Update from 2D engine
+                const state = slamEngine.getState();
+                robot = state.robot;
+                trueMap = state.true_map;
+                discoveredMap = state.discovered_map;
+                sensors = slamEngine.getSensorReadings();
+                odometry = robot.odometry;
+                pathHistory = slamEngine.robot.path_history;
+                
                 console.log('🎮 Switched to 2D Mode');
             }
             
@@ -2090,6 +2114,13 @@ document.addEventListener('DOMContentLoaded', () => {
         zLevelInput.addEventListener('input', (e) => {
             currentZLevel = parseInt(e.target.value);
             zLevelDisplay.textContent = currentZLevel.toString();
+            
+            // Update 3D engine view level
+            if (is3DMode && slamEngine3D) {
+                slamEngine3D.setViewLevel(currentZLevel);
+                updateFromEngine3D();
+            }
+            
             render();
         });
     }
