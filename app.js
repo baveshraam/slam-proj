@@ -727,22 +727,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear canvases
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // If in 3D mode and using 3D engine, get the current z-level slice
+        // If in 3D mode, refresh state from 3D engine
         if (is3DMode && CLIENT_SIDE && slamEngine3D) {
-            const state = slamEngine3D.getState3D();
-            trueMap = state.true_map[currentZLevel] || [];
-            discoveredMap = state.discovered_map[currentZLevel] || [];
-            
-            // Update robot position for current z-level
-            robot = {
-                x: state.robot.position[0],
-                y: state.robot.position[1],
-                z: state.robot.position[2],
-                angle: state.robot.orientation[2],  // yaw
-                pitch: state.robot.orientation[1],
-                roll: state.robot.orientation[0]
-            };
+            updateFromEngine3D();
         }
+        
+        console.log('🎨 Rendering - Mode:', is3DMode ? '3D' : '2D');
+        console.log('🗺️ TrueMap:', trueMap?.length, 'rows');
+        console.log('🤖 Robot:', robot);
         
         // Draw true map (left canvas)
         drawGrid();
@@ -1343,11 +1335,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             robot = state.robot;
                             trueMap = state.true_map;
                             discoveredMap = state.discovered_map;
+                            sensors = slamEngine.getSensorReadings();
+                            odometry = robot.odometry;
+                            pathHistory = slamEngine.robot.path_history;
                         }
                         goal = null;
                         plannedPath = [];
+                        console.log(`✅ Robot reset (${is3DMode ? '3D' : '2D'} mode)`);
+                        console.log('📍 Path history after reset:', pathHistory);
                         render();
-                        console.log(`Client-side: Robot reset to starting position (${is3DMode ? '3D' : '2D'} mode)`);
                     } else {
                         // Server-side reset
                         fetch(`${API_BASE_URL}/api/reset`, { method: 'POST' })
